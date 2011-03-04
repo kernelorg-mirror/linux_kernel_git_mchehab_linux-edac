@@ -34,6 +34,9 @@
 #include "edac_core.h"
 #include "edac_module.h"
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/hw_event.h>
+
 /* lock to memory controller's control array */
 static DEFINE_MUTEX(mem_ctls_mutex);
 static LIST_HEAD(mc_devices);
@@ -224,6 +227,9 @@ struct mem_ctl_info *edac_mc_alloc(unsigned sz_pvt, unsigned nr_csrows,
 	 * which will perform kobj unregistration and the actual free
 	 * will occur during the kobject callback operation
 	 */
+
+	trace_hw_event_init("mce", (unsigned)edac_index);
+
 	return mci;
 }
 EXPORT_SYMBOL_GPL(edac_mc_alloc);
@@ -685,6 +691,7 @@ void edac_mc_handle_ce(struct mem_ctl_info *mci,
 	/* FIXME - maybe make panic on INTERNAL ERROR an option */
 	if (row >= mci->nr_csrows || row < 0) {
 		/* something is wrong */
+		trace_mc_out_of_range(mci, "CE", "row", row, 0, mci->nr_csrows);
 		edac_mc_printk(mci, KERN_ERR,
 			"INTERNAL ERROR: row out of range "
 			"(%d >= %d)\n", row, mci->nr_csrows);
@@ -694,6 +701,8 @@ void edac_mc_handle_ce(struct mem_ctl_info *mci,
 
 	if (channel >= mci->csrows[row].nr_channels || channel < 0) {
 		/* something is wrong */
+		trace_mc_out_of_range(mci, "CE", "channel", channel,
+				      0, mci->csrows[row].nr_channels);
 		edac_mc_printk(mci, KERN_ERR,
 			"INTERNAL ERROR: channel out of range "
 			"(%d >= %d)\n", channel,
@@ -701,6 +710,9 @@ void edac_mc_handle_ce(struct mem_ctl_info *mci,
 		edac_mc_handle_ce_no_info(mci, "INTERNAL ERROR");
 		return;
 	}
+
+	trace_mc_corrected_error(mci, page_frame_number, offset_in_page,
+				syndrome, row, channel, msg);
 
 	if (edac_mc_get_log_ce())
 		/* FIXME - put in DIMM location */
@@ -737,6 +749,7 @@ EXPORT_SYMBOL_GPL(edac_mc_handle_ce);
 
 void edac_mc_handle_ce_no_info(struct mem_ctl_info *mci, const char *msg)
 {
+	trace_mc_corrected_error_no_info(mci, msg);
 	if (edac_mc_get_log_ce())
 		edac_mc_printk(mci, KERN_WARNING,
 			"CE - no information available: %s\n", msg);
@@ -761,6 +774,8 @@ void edac_mc_handle_ue(struct mem_ctl_info *mci,
 	/* FIXME - maybe make panic on INTERNAL ERROR an option */
 	if (row >= mci->nr_csrows || row < 0) {
 		/* something is wrong */
+		trace_mc_out_of_range(mci, "UE", "row", row,
+				      0, mci->nr_csrows);
 		edac_mc_printk(mci, KERN_ERR,
 			"INTERNAL ERROR: row out of range "
 			"(%d >= %d)\n", row, mci->nr_csrows);
@@ -781,6 +796,8 @@ void edac_mc_handle_ue(struct mem_ctl_info *mci,
 		pos += chars;
 	}
 
+	trace_mc_uncorrected_error(mci, page_frame_number, offset_in_page,
+				row, msg, labels);
 	if (edac_mc_get_log_ue())
 		edac_mc_printk(mci, KERN_EMERG,
 			"UE page 0x%lx, offset 0x%lx, grain %d, row %d, "
@@ -801,6 +818,7 @@ EXPORT_SYMBOL_GPL(edac_mc_handle_ue);
 
 void edac_mc_handle_ue_no_info(struct mem_ctl_info *mci, const char *msg)
 {
+	trace_mc_uncorrected_error_no_info(mci, msg);
 	if (edac_mc_get_panic_on_ue())
 		panic("EDAC MC%d: Uncorrected Error", mci->mc_idx);
 
@@ -828,6 +846,9 @@ void edac_mc_handle_fbd_ue(struct mem_ctl_info *mci,
 
 	if (csrow >= mci->nr_csrows) {
 		/* something is wrong */
+
+		trace_mc_out_of_range(mci, "UE FBDIMM", "row", csrow,
+				      0, mci->nr_csrows);
 		edac_mc_printk(mci, KERN_ERR,
 			"INTERNAL ERROR: row out of range (%d >= %d)\n",
 			csrow, mci->nr_csrows);
@@ -837,6 +858,8 @@ void edac_mc_handle_fbd_ue(struct mem_ctl_info *mci,
 
 	if (channela >= mci->csrows[csrow].nr_channels) {
 		/* something is wrong */
+		trace_mc_out_of_range(mci, "UE FBDIMM", "channel-a", channela,
+				      0, mci->csrows[csrow].nr_channels);
 		edac_mc_printk(mci, KERN_ERR,
 			"INTERNAL ERROR: channel-a out of range "
 			"(%d >= %d)\n",
@@ -847,6 +870,8 @@ void edac_mc_handle_fbd_ue(struct mem_ctl_info *mci,
 
 	if (channelb >= mci->csrows[csrow].nr_channels) {
 		/* something is wrong */
+		trace_mc_out_of_range(mci, "UE FBDIMM", "channel-b", channelb,
+				      0, mci->csrows[csrow].nr_channels);
 		edac_mc_printk(mci, KERN_ERR,
 			"INTERNAL ERROR: channel-b out of range "
 			"(%d >= %d)\n",
@@ -866,6 +891,8 @@ void edac_mc_handle_fbd_ue(struct mem_ctl_info *mci,
 	chars = snprintf(pos, len + 1, "-%s",
 			 mci->csrows[csrow].channels[channelb].label);
 
+	trace_mc_uncorrected_error_fbd(mci, csrow, channela, channelb,
+				       msg, labels);
 	if (edac_mc_get_log_ue())
 		edac_mc_printk(mci, KERN_EMERG,
 			"UE row %d, channel-a= %d channel-b= %d "
@@ -890,6 +917,8 @@ void edac_mc_handle_fbd_ce(struct mem_ctl_info *mci,
 	/* Ensure boundary values */
 	if (csrow >= mci->nr_csrows) {
 		/* something is wrong */
+		trace_mc_out_of_range(mci, "CE FBDIMM", "row", csrow,
+				      0, mci->nr_csrows);
 		edac_mc_printk(mci, KERN_ERR,
 			"INTERNAL ERROR: row out of range (%d >= %d)\n",
 			csrow, mci->nr_csrows);
@@ -898,6 +927,8 @@ void edac_mc_handle_fbd_ce(struct mem_ctl_info *mci,
 	}
 	if (channel >= mci->csrows[csrow].nr_channels) {
 		/* something is wrong */
+		trace_mc_out_of_range(mci, "UE FBDIMM", "channel", channel,
+				      0, mci->csrows[csrow].nr_channels);
 		edac_mc_printk(mci, KERN_ERR,
 			"INTERNAL ERROR: channel out of range (%d >= %d)\n",
 			channel, mci->csrows[csrow].nr_channels);
@@ -905,6 +936,7 @@ void edac_mc_handle_fbd_ce(struct mem_ctl_info *mci,
 		return;
 	}
 
+	trace_mc_corrected_error_fbd(mci, csrow, channel, msg);
 	if (edac_mc_get_log_ce())
 		/* FIXME - put in DIMM location */
 		edac_mc_printk(mci, KERN_WARNING,
