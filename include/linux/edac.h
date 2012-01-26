@@ -66,6 +66,12 @@ enum dev_type {
 #define DEV_FLAG_X32		BIT(DEV_X32)
 #define DEV_FLAG_X64		BIT(DEV_X64)
 
+enum hw_event_mc_err_type {
+	HW_EVENT_ERR_CORRECTED,
+	HW_EVENT_ERR_UNCORRECTED,
+	HW_EVENT_ERR_FATAL,
+};
+
 /* memory types */
 enum mem_type {
 	MEM_EMPTY = 0,		/* Empty csrow */

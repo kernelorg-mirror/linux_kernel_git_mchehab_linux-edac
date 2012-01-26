@@ -685,6 +685,7 @@ void edac_mc_handle_ce(struct mem_ctl_info *mci,
 		int row, int channel, const char *msg)
 {
 	unsigned long remapped_page;
+	char detail[80];
 
 	debugf3("MC%d: %s()\n", mci->mc_idx, __func__);
 
@@ -711,8 +712,15 @@ void edac_mc_handle_ce(struct mem_ctl_info *mci,
 		return;
 	}
 
-	trace_mc_corrected_error(mci, page_frame_number, offset_in_page,
-				syndrome, row, channel, msg);
+	/* Memory type dependent details about the error */
+	snprintf(detail, sizeof(detail),
+		 " (page 0x%lx, offset 0x%lx, grain %d, "
+		 "syndrome 0x%lx, row %d, channel %d)\n",
+		 page_frame_number, offset_in_page,
+		 mci->csrows[row].grain, syndrome, row, channel);
+	trace_mc_error(HW_EVENT_ERR_CORRECTED, mci->mc_idx,
+		       mci->csrows[row].channels[channel].label,
+		       msg, detail);
 
 	if (edac_mc_get_log_ce())
 		/* FIXME - put in DIMM location */
@@ -749,7 +757,8 @@ EXPORT_SYMBOL_GPL(edac_mc_handle_ce);
 
 void edac_mc_handle_ce_no_info(struct mem_ctl_info *mci, const char *msg)
 {
-	trace_mc_corrected_error_no_info(mci, msg);
+	trace_mc_error(HW_EVENT_ERR_CORRECTED, mci->mc_idx,
+		       "unknown", msg, "");
 	if (edac_mc_get_log_ce())
 		edac_mc_printk(mci, KERN_WARNING,
 			"CE - no information available: %s\n", msg);
@@ -768,6 +777,7 @@ void edac_mc_handle_ue(struct mem_ctl_info *mci,
 	char *pos = labels;
 	int chan;
 	int chars;
+	char detail[80];
 
 	debugf3("MC%d: %s()\n", mci->mc_idx, __func__);
 
@@ -796,8 +806,15 @@ void edac_mc_handle_ue(struct mem_ctl_info *mci,
 		pos += chars;
 	}
 
-	trace_mc_uncorrected_error(mci, page_frame_number, offset_in_page,
-				row, msg, labels);
+	/* Memory type dependent details about the error */
+	snprintf(detail, sizeof(detail),
+		 "page 0x%lx, offset 0x%lx, grain %d, row %d ",
+		 page_frame_number, offset_in_page,
+	         mci->csrows[row].grain, row);
+	trace_mc_error(HW_EVENT_ERR_UNCORRECTED, mci->mc_idx,
+		       labels,
+		       msg, detail);
+
 	if (edac_mc_get_log_ue())
 		edac_mc_printk(mci, KERN_EMERG,
 			"UE page 0x%lx, offset 0x%lx, grain %d, row %d, "
@@ -818,7 +835,8 @@ EXPORT_SYMBOL_GPL(edac_mc_handle_ue);
 
 void edac_mc_handle_ue_no_info(struct mem_ctl_info *mci, const char *msg)
 {
-	trace_mc_uncorrected_error_no_info(mci, msg);
+	trace_mc_error(HW_EVENT_ERR_UNCORRECTED, mci->mc_idx,
+		       "unknown", msg, "");
 	if (edac_mc_get_panic_on_ue())
 		panic("EDAC MC%d: Uncorrected Error", mci->mc_idx);
 
@@ -843,6 +861,7 @@ void edac_mc_handle_fbd_ue(struct mem_ctl_info *mci,
 	char labels[len + 1];
 	char *pos = labels;
 	int chars;
+	char detail[80];
 
 	if (csrow >= mci->nr_csrows) {
 		/* something is wrong */
@@ -891,8 +910,13 @@ void edac_mc_handle_fbd_ue(struct mem_ctl_info *mci,
 	chars = snprintf(pos, len + 1, "-%s",
 			 mci->csrows[csrow].channels[channelb].label);
 
-	trace_mc_uncorrected_error_fbd(mci, csrow, channela, channelb,
-				       msg, labels);
+	/* Memory type dependent details about the error */
+	snprintf(detail, sizeof(detail),
+		 "row %d, channel-a= %d channel-b= %d ",
+		 csrow, channela, channelb);
+	trace_mc_error(HW_EVENT_ERR_UNCORRECTED, mci->mc_idx,
+		       labels,
+		       msg, detail);
 	if (edac_mc_get_log_ue())
 		edac_mc_printk(mci, KERN_EMERG,
 			"UE row %d, channel-a= %d channel-b= %d "
@@ -913,7 +937,7 @@ EXPORT_SYMBOL(edac_mc_handle_fbd_ue);
 void edac_mc_handle_fbd_ce(struct mem_ctl_info *mci,
 			unsigned int csrow, unsigned int channel, char *msg)
 {
-
+	char detail[80];
 	/* Ensure boundary values */
 	if (csrow >= mci->nr_csrows) {
 		/* something is wrong */
@@ -936,7 +960,14 @@ void edac_mc_handle_fbd_ce(struct mem_ctl_info *mci,
 		return;
 	}
 
-	trace_mc_corrected_error_fbd(mci, csrow, channel, msg);
+	/* Memory type dependent details about the error */
+	snprintf(detail, sizeof(detail),
+		 "(row %d, channel %d)\n",
+		 csrow, channel);
+	trace_mc_error(HW_EVENT_ERR_CORRECTED, mci->mc_idx,
+		       mci->csrows[csrow].channels[channel].label,
+		       msg, detail);
+
 	if (edac_mc_get_log_ce())
 		/* FIXME - put in DIMM location */
 		edac_mc_printk(mci, KERN_WARNING,
