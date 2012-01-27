@@ -379,6 +379,7 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 
 	mci->dimm_loc_type = DIMM_LOC_CSROW;
 	dimm = mci->dimms;
+	mci->nr_dimms = 0;
 	for (index = 0; index < mci->nr_csrows; index++) {
 		csrow = &mci->csrows[index];
 

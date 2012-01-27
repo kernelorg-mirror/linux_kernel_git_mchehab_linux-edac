@@ -641,6 +641,7 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 
 	dimm = mci->dimms;
 	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
+	mci->nr_dimms = 0;
 	for (i = 0; i < NUM_CHANS; i++) {
 		u32 data, dimm_dod[3], value[8];
 

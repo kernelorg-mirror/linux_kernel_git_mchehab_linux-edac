@@ -852,6 +852,7 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 
 	dimm = mci->dimms;
 	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
+	mci->nr_dimms = 0;
 	for (i = 0; i < mci->nr_csrows; i++) {
 		const unsigned long npages = i5100_npages(mci, i);
 		const unsigned chan = i5100_csrow_to_chan(mci, i);
