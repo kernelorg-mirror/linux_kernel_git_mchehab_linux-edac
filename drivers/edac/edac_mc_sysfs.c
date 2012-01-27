@@ -415,6 +415,151 @@ err_out:
 	return err;
 }
 
+/* dimm specific attribute structure */
+struct dimmdev_attribute {
+	struct attribute attr;
+	 ssize_t(*show) (struct dimm_info *, char *);
+	 ssize_t(*store) (struct dimm_info *, const char *, size_t);
+};
+
+#define DIMMDEV_ATTR(_name, _mode, _show, _store)		\
+static struct dimmdev_attribute attr_##_name = {		\
+	.attr = {.name = __stringify(_name), .mode = _mode },	\
+	.show   = _show,					\
+	.store  = _store,					\
+};
+
+#define to_dimm(k) container_of(k, struct dimm_info, kobj)
+#define to_dimmdev_attr(a) container_of(a, struct dimmdev_attribute, attr)
+
+/* Set of show/store higher level functions for default dimm attributes */
+static ssize_t dimmdev_show(struct kobject *kobj,
+			struct attribute *attr, char *buffer)
+{
+	struct dimm_info *dimm = to_dimm(kobj);
+	struct dimmdev_attribute *dimmdev_attr = to_dimmdev_attr(attr);
+
+	if (dimmdev_attr->show)
+		return dimmdev_attr->show(dimm, buffer);
+	return -EIO;
+}
+
+static ssize_t dimmdev_store(struct kobject *kobj, struct attribute *attr,
+			const char *buffer, size_t count)
+{
+	struct dimm_info *dimm = to_dimm(kobj);
+	struct dimmdev_attribute *dimmdev_attr = to_dimmdev_attr(attr);
+
+	if (dimmdev_attr->store)
+		return dimmdev_attr->store(dimm,
+					buffer,
+					count);
+	return -EIO;
+}
+
+static const struct sysfs_ops dimmfs_ops = {
+	.show = dimmdev_show,
+	.store = dimmdev_store
+};
+
+/* show/store functions for DIMM Label attributes */
+static ssize_t dimmdev_location_show(struct dimm_info *dimm, char *data)
+{
+	return sprintf(data, "csrow %d, channel %d\n",
+		       dimm->csrow,
+		       dimm->csrow_channel);
+}
+
+static ssize_t dimmdev_label_show(struct dimm_info *dimm, char *data)
+{
+	/* if field has not been initialized, there is nothing to send */
+	if (!dimm->label[0])
+		return 0;
+
+	return snprintf(data, EDAC_MC_LABEL_LEN, "%s\n", dimm->label);
+}
+
+static ssize_t dimmdev_label_store(struct dimm_info *dimm,
+					const char *data,
+					size_t count)
+{
+	ssize_t max_size = 0;
+
+	max_size = min((ssize_t) count, (ssize_t) EDAC_MC_LABEL_LEN - 1);
+	strncpy(dimm->label, data, max_size);
+	dimm->label[max_size] = '\0';
+
+	return max_size;
+}
+
+/* default cwrow<id>/attribute files */
+DIMMDEV_ATTR(label, S_IRUGO | S_IWUSR, dimmdev_label_show, dimmdev_label_store);
+DIMMDEV_ATTR(location, S_IRUGO, dimmdev_location_show, NULL);
+
+/* default attributes of the DIMM<id> object */
+static struct dimmdev_attribute *default_dimm_attr[] = {
+	&attr_label,
+	&attr_location,
+	NULL,
+};
+
+/* No memory to release for this kobj */
+static void edac_dimm_instance_release(struct kobject *kobj)
+{
+	struct mem_ctl_info *mci;
+	struct dimm_info *cs;
+
+	debugf1("%s()\n", __func__);
+
+	cs = container_of(kobj, struct dimm_info, kobj);
+	mci = cs->mci;
+
+	kobject_put(&mci->edac_mci_kobj);
+}
+
+/* the kobj_type instance for a DIMM */
+static struct kobj_type ktype_dimm = {
+	.release = edac_dimm_instance_release,
+	.sysfs_ops = &dimmfs_ops,
+	.default_attrs = (struct attribute **)default_dimm_attr,
+};
+/* Create a CSROW object under specifed edac_mc_device */
+static int edac_create_dimm_object(struct mem_ctl_info *mci,
+					struct dimm_info *dimm, int index)
+{
+	struct kobject *kobj_mci = &mci->edac_mci_kobj;
+	struct kobject *kobj;
+	int err;
+
+	/* generate ..../edac/mc/mc<id>/dimm<index>   */
+	memset(&dimm->kobj, 0, sizeof(dimm->kobj));
+	dimm->mci = mci;	/* include container up link */
+
+	/* bump the mci instance's kobject's ref count */
+	kobj = kobject_get(&mci->edac_mci_kobj);
+	if (!kobj) {
+		err = -ENODEV;
+		goto err_out;
+	}
+
+	/* Instanstiate the dimm object */
+	err = kobject_init_and_add(&dimm->kobj, &ktype_dimm, kobj_mci,
+				   "dimm%d", index);
+	if (err)
+		goto err_release_top_kobj;
+
+	kobject_uevent(&dimm->kobj, KOBJ_ADD);
+	return 0;
+
+	/* error unwind stack */
+err_release_top_kobj:
+	kobject_put(&mci->edac_mci_kobj);
+
+err_out:
+	return err;
+}
+
+
 /* default sysfs methods and data structures for the main MCI kobject */
 
 static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
@@ -905,7 +1050,7 @@ static void edac_remove_mci_instance_attributes(struct mem_ctl_info *mci,
  */
 int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 {
-	int i;
+	int i, j;
 	int err;
 	struct csrow_info *csrow;
 	struct kobject *kobj_mci = &mci->edac_mci_kobj;
@@ -952,7 +1097,23 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 		}
 	}
 
+	/*
+	 * Make directories for each DIMM object under the mc<id> kobject
+	 */
+	for (j = 0; j < mci->nr_dimms; j++) {
+		err = edac_create_dimm_object(mci, &mci->dimms[j] , j);
+		if (err) {
+			debugf1("%s() failure: create dimm %d obj\n",
+				__func__, j);
+			goto fail2;
+		}
+	}
+
 	return 0;
+
+fail2:
+	for (j--; j >= 0; j--)
+		kobject_put(&mci->dimms[i].kobj);
 
 	/* CSROW error: backout what has already been registered,  */
 fail1:
@@ -983,6 +1144,10 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	/* remove all csrow kobjects */
 	debugf4("%s()  unregister this mci kobj\n", __func__);
+	for (i = 0; i < mci->nr_dimms; i++) {
+		debugf0("%s()  unreg dimm-%d\n", __func__, i);
+		kobject_put(&mci->dimms[i].kobj);
+	}
 	for (i = 0; i < mci->nr_csrows; i++) {
 		if (mci->csrows[i].nr_pages > 0) {
 			debugf0("%s()  unreg csrow-%d\n", __func__, i);
