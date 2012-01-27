@@ -268,6 +268,8 @@ struct dimm_info {
 			unsigned csrow_channel;
 		};
 	} location;
+	struct kobject kobj;		/* sysfs kobject for this csrow */
+	struct mem_ctl_info *mci;	/* the parent */
 };
 
 struct csrow_channel_info {
