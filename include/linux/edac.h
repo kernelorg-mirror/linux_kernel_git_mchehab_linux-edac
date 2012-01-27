@@ -333,23 +333,47 @@ enum scrub_type {
  * PS - I enjoyed writing all that about as much as you enjoyed reading it.
  */
 
+enum dimm_location_type {
+	DIMM_LOC_CSROW,
+	DIMM_LOC_MC_CHANNEL,
+};
+
+/* FIXME: add a per-dimm ce error count */
+struct dimm_info {
+	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
+	unsigned memory_controller;
+	union {
+		struct {
+			unsigned mc_channel;
+			unsigned mc_dimm_number;
+		};
+		struct {
+			unsigned csrow;
+			unsigned csrow_channel;
+		};
+	} location;
+};
+
 /**
  * struct rank_info - contains the information for one DIMM rank
  *
  * @chan_idx:	channel number where the rank is (typically, 0 or 1)
  * @ce_count:	number of correctable errors for this rank
- * @label:	DIMM label. Different ranks for the same DIMM should be
- *		filled, on userspace, with the same label.
- *		FIXME: The core currently won't enforce it.
  * @csrow:	A pointer to the chip select row structure (the parent
  *		structure). The location of the rank is given by
  *		the (csrow->csrow_idx, chan_idx) vector.
+ * @dimm:	A pointer to the DIMM structure, where the DIMM label
+ *		information is stored.
+ *
+ * FIXME: Currently, the EDAC core model will assume one DIMM per rank.
+ *	  This is a bad assumption, but it makes this patch easier. Later
+ *	  patches in this series will fix this issue.
  */
 struct rank_info {
 	int chan_idx;
 	u32 ce_count;
-	char label[EDAC_MC_LABEL_LEN + 1];
-	struct csrow_info *csrow;	/* the parent */
+	struct csrow_info *csrow;
+	struct dimm_info *dimm;
 };
 
 struct csrow_info {
@@ -449,6 +473,14 @@ struct mem_ctl_info {
 	int mc_idx;
 	int nr_csrows;
 	struct csrow_info *csrows;
+
+	/*
+	 * DIMM info. Will eventually remove the entire csrows_info some day
+	 */
+	enum dimm_location_type dimm_loc_type;
+	unsigned nr_dimms;
+	struct dimm_info *dimms;
+
 	/*
 	 * FIXME - what about controllers on other busses? - IDs must be
 	 * unique.  dev pointer should be sufficiently unique, but

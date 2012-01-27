@@ -428,12 +428,16 @@ static void i5100_handle_ce(struct mem_ctl_info *mci,
 			    const char *msg)
 {
 	const int csrow = i5100_rank_to_csrow(mci, chan, rank);
+	char *label = NULL;
+
+	if (mci->csrows[csrow].channels[0].dimm)
+		label = mci->csrows[csrow].channels[0].dimm->label;
 
 	printk(KERN_ERR
 		"CE chan %d, bank %u, rank %u, syndrome 0x%lx, "
 		"cas %u, ras %u, csrow %u, label \"%s\": %s\n",
 		chan, bank, rank, syndrome, cas, ras,
-		csrow, mci->csrows[csrow].channels[0].label, msg);
+		csrow, label, msg);
 
 	mci->ce_count++;
 	mci->csrows[csrow].ce_count++;
@@ -450,12 +454,16 @@ static void i5100_handle_ue(struct mem_ctl_info *mci,
 			    const char *msg)
 {
 	const int csrow = i5100_rank_to_csrow(mci, chan, rank);
+	char *label = NULL;
+
+	if (mci->csrows[csrow].channels[0].dimm)
+		label = mci->csrows[csrow].channels[0].dimm->label;
 
 	printk(KERN_ERR
 		"UE chan %d, bank %u, rank %u, syndrome 0x%lx, "
 		"cas %u, ras %u, csrow %u, label \"%s\": %s\n",
 		chan, bank, rank, syndrome, cas, ras,
-		csrow, mci->csrows[csrow].channels[0].label, msg);
+		csrow, label, msg);
 
 	mci->ue_count++;
 	mci->csrows[csrow].ue_count++;
@@ -840,7 +848,10 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 	int i;
 	unsigned long total_pages = 0UL;
 	struct i5100_priv *priv = mci->pvt_info;
+	struct dimm_info *dimm;
 
+	dimm = mci->dimms;
+	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
 	for (i = 0; i < mci->nr_csrows; i++) {
 		const unsigned long npages = i5100_npages(mci, i);
 		const unsigned chan = i5100_csrow_to_chan(mci, i);
@@ -871,11 +882,16 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 		mci->csrows[i].channels[0].chan_idx = 0;
 		mci->csrows[i].channels[0].ce_count = 0;
 		mci->csrows[i].channels[0].csrow = mci->csrows + i;
-		snprintf(mci->csrows[i].channels[0].label,
-			 sizeof(mci->csrows[i].channels[0].label),
-			 "DIMM%u", i5100_rank_to_slot(mci, chan, rank));
-
 		total_pages += npages;
+
+		mci->csrows[i].channels[0].dimm = dimm;
+		dimm->location.mc_channel = chan;
+		dimm->location.mc_dimm_number = rank;
+		snprintf(dimm->label, sizeof(dimm->label),
+			 "DIMM%u",
+			 i5100_rank_to_slot(mci, chan, rank));
+		mci->nr_dimms++;
+		dimm++;
 	}
 }
 
