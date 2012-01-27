@@ -725,7 +725,6 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 			csr->nr_pages = npages;
 
 			csr->page_mask = 0;
-			csr->grain = 8;
 			csr->csrow_idx = csrow;
 			csr->nr_channels = 1;
 
@@ -736,30 +735,31 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 
 			switch (banks) {
 			case 4:
-				csr->dtype = DEV_X4;
+				dimm->dtype = DEV_X4;
 				break;
 			case 8:
-				csr->dtype = DEV_X8;
+				dimm->dtype = DEV_X8;
 				break;
 			case 16:
-				csr->dtype = DEV_X16;
+				dimm->dtype = DEV_X16;
 				break;
 			default:
-				csr->dtype = DEV_UNKNOWN;
+				dimm->dtype = DEV_UNKNOWN;
 			}
 
 			csr->channels[0].dimm = dimm;
+
 			dimm->location.mc_channel = i;
 			dimm->location.mc_dimm_number = j;
 			snprintf(dimm->label, sizeof(dimm->label),
 				 "CPU#%uChannel#%u_DIMM#%u",
 				 pvt->i7core_dev->socket, i, j);
+			dimm->grain = 8;
+			dimm->edac_mode = mode;
+			dimm->mtype = mtype;
+
 			mci->nr_dimms++;
 			dimm++;
-
-			csr->edac_mode = mode;
-			csr->mtype = mtype;
-
 			csrow++;
 		}
 
