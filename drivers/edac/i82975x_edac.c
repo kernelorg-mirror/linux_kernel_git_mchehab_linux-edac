@@ -364,6 +364,8 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 	u8 value;
 	u32 cumul_size;
 	int index, chan;
+	struct dimm_info *dimm;
+	enum dev_type dtype;
 
 	last_cumul_size = 0;
 
@@ -398,10 +400,17 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 		 *   [0-7] for single-channel; i.e. csrow->nr_channels = 1
 		 *   [0-3] for dual-channel; i.e. csrow->nr_channels = 2
 		 */
-		for (chan = 0; chan < csrow->nr_channels; chan++)
+		dtype = i82975x_dram_type(mch_window, index);
+		for (chan = 0; chan < csrow->nr_channels; chan++) {
+			dimm = mci->csrows[index].channels[chan].dimm;
 			strncpy(csrow->channels[chan].dimm->label,
 					labels[(index >> 1) + (chan * 2)],
 					EDAC_MC_LABEL_LEN);
+			dimm->grain = 1 << 6;	/* I82975X_EAP has 64B resolution */
+			dimm->dtype = dtype;
+			dimm->mtype = MEM_DDR2; /* I82975x supports only DDR2 */
+			dimm->edac_mode = EDAC_SECDED; /* only supported */
+		}
 
 		if (cumul_size == last_cumul_size)
 			continue;	/* not populated */
@@ -410,10 +419,6 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 		csrow->last_page = cumul_size - 1;
 		csrow->nr_pages = cumul_size - last_cumul_size;
 		last_cumul_size = cumul_size;
-		csrow->grain = 1 << 6;	/* I82975X_EAP has 64B resolution */
-		csrow->mtype = MEM_DDR2; /* I82975x supports only DDR2 */
-		csrow->dtype = i82975x_dram_type(mch_window, index);
-		csrow->edac_mode = EDAC_SECDED; /* only supported */
 	}
 }
 
