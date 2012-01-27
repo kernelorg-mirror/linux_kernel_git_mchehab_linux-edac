@@ -550,7 +550,7 @@ static int sbridge_get_active_channels(const u8 bus, unsigned *channels,
 	return 0;
 }
 
-static int get_dimm_config(const struct mem_ctl_info *mci)
+static int get_dimm_config(struct mem_ctl_info *mci)
 {
 	struct sbridge_pvt *pvt = mci->pvt_info;
 	struct csrow_info *csr;
@@ -560,6 +560,7 @@ static int get_dimm_config(const struct mem_ctl_info *mci)
 	u32 reg;
 	enum edac_type mode;
 	enum mem_type mtype;
+	struct dimm_info *dimm;
 
 	pci_read_config_dword(pvt->pci_br, SAD_TARGET, &reg);
 	pvt->sbridge_dev->source_id = SOURCE_ID(reg);
@@ -611,6 +612,7 @@ static int get_dimm_config(const struct mem_ctl_info *mci)
 	/* On all supported DDR3 DIMM types, there are 8 banks available */
 	banks = 8;
 
+	dimm = mci->dimms;
 	for (i = 0; i < NUM_CHANNELS; i++) {
 		u32 mtr;
 
@@ -633,29 +635,32 @@ static int get_dimm_config(const struct mem_ctl_info *mci)
 					pvt->sbridge_dev->mc, i, j,
 					size, npages,
 					banks, ranks, rows, cols);
-				csr = &mci->csrows[csrow];
 
+				/*
+				 * Fake stuff. This controller doesn't see
+				 * csrows.
+				 */
+				csr = &mci->csrows[csrow];
 				csr->first_page = last_page;
 				csr->last_page = last_page + npages - 1;
-				csr->page_mask = 0UL;	/* Unused */
 				csr->nr_pages = npages;
-				csr->grain = 32;
 				csr->csrow_idx = csrow;
-				csr->dtype = (banks == 8) ? DEV_X8 : DEV_X4;
-				csr->ce_count = 0;
-				csr->ue_count = 0;
-				csr->mtype = mtype;
-				csr->edac_mode = mode;
 				csr->nr_channels = 1;
 				csr->channels[0].chan_idx = i;
-				csr->channels[0].ce_count = 0;
 				pvt->csrow_map[i][j] = csrow;
-				snprintf(csr->channels[0].label,
-					 sizeof(csr->channels[0].label),
-					 "CPU_SrcID#%u_Channel#%u_DIMM#%u",
-					 pvt->sbridge_dev->source_id, i, j);
 				last_page += npages;
 				csrow++;
+
+				csr->channels[0].dimm = dimm;
+				dimm->location.mc_channel = i;
+				dimm->location.mc_dimm_number = j;
+				dimm->grain = 32;
+				dimm->dtype = (banks == 8) ? DEV_X8 : DEV_X4;
+				dimm->mtype = mtype;
+				dimm->edac_mode = mode;
+				snprintf(dimm->label, sizeof(dimm->label),
+					 "CPU_SrcID#%u_Channel#%u_DIMM#%u",
+					 pvt->sbridge_dev->source_id, i, j);
 			}
 		}
 	}
