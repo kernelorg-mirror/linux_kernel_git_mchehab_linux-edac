@@ -191,7 +191,7 @@ enum scrub_type {
  * Socket:		A physical connector on the motherboard that accepts
  *			a single memory stick.
  *
- * Channel:		Set of memory devices on a memory stick that must be
+ * Csrow-channel:	Set of memory devices on a memory stick that must be
  *			grouped in parallel with one or more additional
  *			channels from other memory sticks.  This parallel
  *			grouping of the output from multiple channels are
@@ -249,7 +249,7 @@ enum scrub_type {
  * PS - I enjoyed writing all that about as much as you enjoyed reading it.
  */
 
-struct channel_info {
+struct csrow_channel_info {
 	int chan_idx;		/* channel index */
 	u32 ce_count;		/* Correctable Errors for this CHANNEL */
 	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
@@ -276,7 +276,7 @@ struct csrow_info {
 
 	/* channel information for this csrow */
 	u32 nr_channels;
-	struct channel_info *channels;
+	struct csrow_channel_info *channels;
 };
 
 struct mcidev_sysfs_group {
