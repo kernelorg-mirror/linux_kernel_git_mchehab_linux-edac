@@ -867,27 +867,21 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 		 */
 		mci->csrows[i].first_page = total_pages;
 		mci->csrows[i].last_page = total_pages + npages - 1;
-		mci->csrows[i].page_mask = 0UL;
-
 		mci->csrows[i].nr_pages = npages;
-		mci->csrows[i].grain = 32;
 		mci->csrows[i].csrow_idx = i;
-		mci->csrows[i].dtype =
-			(priv->mtr[chan][rank].width == 4) ? DEV_X4 : DEV_X8;
-		mci->csrows[i].ue_count = 0;
-		mci->csrows[i].ce_count = 0;
-		mci->csrows[i].mtype = MEM_RDDR2;
-		mci->csrows[i].edac_mode = EDAC_SECDED;
 		mci->csrows[i].mci = mci;
 		mci->csrows[i].nr_channels = 1;
-		mci->csrows[i].channels[0].chan_idx = 0;
-		mci->csrows[i].channels[0].ce_count = 0;
 		mci->csrows[i].channels[0].csrow = mci->csrows + i;
 		total_pages += npages;
 
 		mci->csrows[i].channels[0].dimm = dimm;
 		dimm->location.mc_channel = chan;
 		dimm->location.mc_dimm_number = rank;
+		dimm->grain = 32;
+		dimm->dtype = (priv->mtr[chan][rank].width == 4) ?
+			      DEV_X4 : DEV_X8;
+		dimm->mtype = MEM_RDDR2;
+		dimm->edac_mode = EDAC_SECDED;
 		snprintf(dimm->label, sizeof(dimm->label),
 			 "DIMM%u",
 			 i5100_rank_to_slot(mci, chan, rank));

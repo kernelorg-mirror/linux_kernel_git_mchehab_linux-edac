@@ -637,22 +637,18 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 					pvt->sbridge_dev->mc, i, j,
 					size, npages,
 					banks, ranks, rows, cols);
-				csr = &mci->csrows[csrow];
 
+				/*
+				 * Fake stuff. This controller doesn't see
+				 * csrows.
+				 */
+				csr = &mci->csrows[csrow];
 				csr->first_page = last_page;
 				csr->last_page = last_page + npages - 1;
-				csr->page_mask = 0UL;	/* Unused */
 				csr->nr_pages = npages;
-				csr->grain = 32;
 				csr->csrow_idx = csrow;
-				csr->dtype = (banks == 8) ? DEV_X8 : DEV_X4;
-				csr->ce_count = 0;
-				csr->ue_count = 0;
-				csr->mtype = mtype;
-				csr->edac_mode = mode;
 				csr->nr_channels = 1;
 				csr->channels[0].chan_idx = i;
-				csr->channels[0].ce_count = 0;
 				pvt->csrow_map[i][j] = csrow;
 				last_page += npages;
 				csrow++;
@@ -660,6 +656,10 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 				csr->channels[0].dimm = dimm;
 				dimm->location.mc_channel = i;
 				dimm->location.mc_dimm_number = j;
+				dimm->grain = 32;
+				dimm->dtype = (banks == 8) ? DEV_X8 : DEV_X4;
+				dimm->mtype = mtype;
+				dimm->edac_mode = mode;
 				snprintf(dimm->label, sizeof(dimm->label),
 					 "CPU_SrcID#%u_Channel#%u_DIMM#%u",
 					 pvt->sbridge_dev->source_id, i, j);
