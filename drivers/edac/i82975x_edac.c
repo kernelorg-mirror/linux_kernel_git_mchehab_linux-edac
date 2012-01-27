@@ -364,6 +364,7 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 	u8 value;
 	u32 cumul_size;
 	int index, chan;
+	struct dimm_info *dimm;
 
 	last_cumul_size = 0;
 
@@ -376,6 +377,8 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 	 *
 	 */
 
+	mci->dimm_loc_type = DIMM_LOC_CSROW;
+	dimm = mci->dimms;
 	for (index = 0; index < mci->nr_csrows; index++) {
 		csrow = &mci->csrows[index];
 
@@ -398,10 +401,16 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 		 *   [0-7] for single-channel; i.e. csrow->nr_channels = 1
 		 *   [0-3] for dual-channel; i.e. csrow->nr_channels = 2
 		 */
-		for (chan = 0; chan < csrow->nr_channels; chan++)
-			strncpy(csrow->channels[chan].label,
+		for (chan = 0; chan < csrow->nr_channels; chan++) {
+			mci->csrows[index].channels[chan].dimm = dimm;
+			dimm->location.csrow = index;
+			dimm->location.csrow_channel = chan;
+			strncpy(csrow->channels[chan].dimm->label,
 					labels[(index >> 1) + (chan * 2)],
 					EDAC_MC_LABEL_LEN);
+			dimm++;
+			mci->nr_dimms++;
+		}
 
 		if (cumul_size == last_cumul_size)
 			continue;	/* not populated */

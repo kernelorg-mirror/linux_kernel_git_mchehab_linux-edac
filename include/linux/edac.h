@@ -249,10 +249,31 @@ enum scrub_type {
  * PS - I enjoyed writing all that about as much as you enjoyed reading it.
  */
 
+enum dimm_location_type {
+	DIMM_LOC_CSROW,
+	DIMM_LOC_MC_CHANNEL,
+};
+
+/* FIXME: add a per-dimm ce error count */
+struct dimm_info {
+	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
+	unsigned memory_controller;
+	union {
+		struct {
+			unsigned mc_channel;
+			unsigned mc_dimm_number;
+		};
+		struct {
+			unsigned csrow;
+			unsigned csrow_channel;
+		};
+	} location;
+};
+
 struct csrow_channel_info {
 	int chan_idx;		/* channel index */
 	u32 ce_count;		/* Correctable Errors for this CHANNEL */
-	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
+	struct dimm_info *dimm;
 	struct csrow_info *csrow;	/* the parent */
 };
 
@@ -353,6 +374,14 @@ struct mem_ctl_info {
 	int mc_idx;
 	int nr_csrows;
 	struct csrow_info *csrows;
+
+	/*
+	 * DIMM info. Will eventually remove the entire csrows_info some day
+	 */
+	enum dimm_location_type dimm_loc_type;
+	unsigned nr_dimms;
+	struct dimm_info *dimms;
+
 	/*
 	 * FIXME - what about controllers on other busses? - IDs must be
 	 * unique.  dev pointer should be sufficiently unique, but
