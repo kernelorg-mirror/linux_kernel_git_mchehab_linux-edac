@@ -314,6 +314,8 @@ struct dimm_info {
 	unsigned memory_controller;
 	unsigned csrow;
 	unsigned csrow_channel;
+	struct kobject kobj;		/* sysfs kobject for this csrow */
+	struct mem_ctl_info *mci;	/* the parent */
 };
 
 /**
