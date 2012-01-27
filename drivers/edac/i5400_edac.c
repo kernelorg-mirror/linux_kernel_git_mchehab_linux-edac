@@ -1137,6 +1137,7 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 	int csrow_megs;
 	int channel;
 	int csrow;
+	struct dimm_info *dimm;
 
 	pvt = mci->pvt_info;
 
@@ -1145,6 +1146,9 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 
 	empty = 1;		/* Assume NO memory */
 
+	dimm = mci->dimms;
+	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
+	mci->nr_dimms = 0;
 	for (csrow = 0; csrow < max_csrows; csrow++) {
 		p_csrow = &mci->csrows[csrow];
 
@@ -1163,6 +1167,9 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 		p_csrow->page_mask = 0xFFF;
 
 		p_csrow->grain = 8;
+		p_csrow->dtype = MTR_DRAM_WIDTH(mtr) ? DEV_X8 : DEV_X4;
+		p_csrow->mtype = MEM_RDDR2;
+		p_csrow->edac_mode = EDAC_SECDED;
 
 		csrow_megs = 0;
 		for (channel = 0; channel < pvt->maxch; channel++)
@@ -1170,16 +1177,10 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 
 		p_csrow->nr_pages = csrow_megs << 8;
 
-		/* Assume DDR2 for now */
-		p_csrow->mtype = MEM_FB_DDR2;
-
-		/* ask what device type on this row */
-		if (MTR_DRAM_WIDTH(mtr))
-			p_csrow->dtype = DEV_X8;
-		else
-			p_csrow->dtype = DEV_X4;
-
-		p_csrow->edac_mode = EDAC_S8ECD8ED;
+		dimm->location.mc_channel = channel;
+		dimm->location.mc_dimm_number = csrow / pvt->maxch;
+		mci->nr_dimms++;
+		dimm++;
 
 		empty = 0;
 	}
