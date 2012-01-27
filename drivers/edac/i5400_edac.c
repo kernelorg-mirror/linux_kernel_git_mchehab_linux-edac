@@ -1166,11 +1166,6 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 		p_csrow->last_page = 9 + csrow * 20;
 		p_csrow->page_mask = 0xFFF;
 
-		p_csrow->grain = 8;
-		p_csrow->dtype = MTR_DRAM_WIDTH(mtr) ? DEV_X8 : DEV_X4;
-		p_csrow->mtype = MEM_RDDR2;
-		p_csrow->edac_mode = EDAC_SECDED;
-
 		csrow_megs = 0;
 		for (channel = 0; channel < pvt->maxch; channel++)
 			csrow_megs += pvt->dimm_info[csrow][channel].megabytes;
@@ -1179,6 +1174,10 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 
 		dimm->location.mc_channel = channel;
 		dimm->location.mc_dimm_number = csrow / pvt->maxch;
+		dimm->grain = 8;
+		dimm->dtype = MTR_DRAM_WIDTH(mtr) ? DEV_X8 : DEV_X4;
+		dimm->mtype = MEM_RDDR2;
+		dimm->edac_mode = EDAC_SECDED;
 		mci->nr_dimms++;
 		dimm++;
 

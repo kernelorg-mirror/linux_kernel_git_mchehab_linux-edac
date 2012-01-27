@@ -618,6 +618,7 @@ static int decode_mtr(struct i7300_pvt *pvt,
 		      int slot, int ch, int branch,
 		      struct i7300_dimm_info *dinfo,
 		      struct csrow_info *p_csrow,
+		      struct dimm_info *dimm,
 		      u32 *nr_pages)
 {
 	int mtr, ans, addrBits, channel;
@@ -663,10 +664,7 @@ static int decode_mtr(struct i7300_pvt *pvt,
 	debugf2("\t\tNUMCOL: %s\n", numcol_toString[MTR_DIMM_COLS(mtr)]);
 	debugf2("\t\tSIZE: %d MB\n", dinfo->megabytes);
 
-	p_csrow->grain = 8;
-	p_csrow->mtype = MEM_FB_DDR2;
 	p_csrow->csrow_idx = slot;
-	p_csrow->page_mask = 0;
 
 	/*
 	 * The type of error detection actually depends of the
@@ -677,15 +675,17 @@ static int decode_mtr(struct i7300_pvt *pvt,
 	 * See datasheet Sections 7.3.6 to 7.3.8
 	 */
 
+	dimm->grain = 8;
+	dimm->mtype = MEM_FB_DDR2;
 	if (IS_SINGLE_MODE(pvt->mc_settings_a)) {
-		p_csrow->edac_mode = EDAC_SECDED;
+		dimm->edac_mode = EDAC_SECDED;
 		debugf2("\t\tECC code is 8-byte-over-32-byte SECDED+ code\n");
 	} else {
 		debugf2("\t\tECC code is on Lockstep mode\n");
 		if (MTR_DRAM_WIDTH(mtr) == 8)
-			p_csrow->edac_mode = EDAC_S8ECD8ED;
+			dimm->edac_mode = EDAC_S8ECD8ED;
 		else
-			p_csrow->edac_mode = EDAC_S4ECD4ED;
+			dimm->edac_mode = EDAC_S4ECD4ED;
 	}
 
 	/* ask what device type on this row */
@@ -694,9 +694,9 @@ static int decode_mtr(struct i7300_pvt *pvt,
 			IS_SCRBALGO_ENHANCED(pvt->mc_settings) ?
 					    "enhanced" : "normal");
 
-		p_csrow->dtype = DEV_X8;
+		dimm->dtype = DEV_X8;
 	} else
-		p_csrow->dtype = DEV_X4;
+		dimm->dtype = DEV_X4;
 
 	return mtr;
 }
@@ -824,7 +824,8 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 				dimm->location.mc_dimm_number = slot;
 
 				mtr = decode_mtr(pvt, slot, ch, branch,
-						 dinfo, p_csrow, &nr_pages);
+						 dinfo, p_csrow, dimm,
+						 &nr_pages);
 				/* if no DIMMS on this row, continue */
 				if (!MTR_DIMMS_PRESENT(mtr))
 					continue;
