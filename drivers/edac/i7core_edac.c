@@ -592,7 +592,7 @@ static int i7core_get_active_channels(const u8 socket, unsigned *channels,
 	return 0;
 }
 
-static int get_dimm_config(const struct mem_ctl_info *mci)
+static int get_dimm_config(struct mem_ctl_info *mci)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	struct csrow_info *csr;
@@ -602,6 +602,7 @@ static int get_dimm_config(const struct mem_ctl_info *mci)
 	unsigned long last_page = 0;
 	enum edac_type mode;
 	enum mem_type mtype;
+	struct dimm_info *dimm;
 
 	/* Get data from the MC register, function 0 */
 	pdev = pvt->pci_mcr[0];
@@ -638,6 +639,8 @@ static int get_dimm_config(const struct mem_ctl_info *mci)
 		numrow(pvt->info.max_dod >> 6),
 		numcol(pvt->info.max_dod >> 9));
 
+	dimm = mci->dimms;
+	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
 	for (i = 0; i < NUM_CHANS; i++) {
 		u32 data, dimm_dod[3], value[8];
 
@@ -744,12 +747,17 @@ static int get_dimm_config(const struct mem_ctl_info *mci)
 				csr->dtype = DEV_UNKNOWN;
 			}
 
+			csr->channels[0].dimm = dimm;
+			dimm->location.mc_channel = i;
+			dimm->location.mc_dimm_number = j;
+			snprintf(dimm->label, sizeof(dimm->label),
+				 "CPU#%uChannel#%u_DIMM#%u",
+				 pvt->i7core_dev->socket, i, j);
+			mci->nr_dimms++;
+			dimm++;
+
 			csr->edac_mode = mode;
 			csr->mtype = mtype;
-			snprintf(csr->channels[0].label,
-					sizeof(csr->channels[0].label),
-					"CPU#%uChannel#%u_DIMM#%u",
-					pvt->i7core_dev->socket, i, j);
 
 			csrow++;
 		}
