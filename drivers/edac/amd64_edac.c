@@ -2126,14 +2126,8 @@ static u32 amd64_csrow_nr_pages(struct amd64_pvt *pvt, u8 dct, int csrow_nr)
 
 	nr_pages = pvt->ops->dbam_to_cs(pvt, dct, cs_mode) << (20 - PAGE_SHIFT);
 
-	/*
-	 * If dual channel then double the memory size of single channel.
-	 * Channel count is 1 or 2
-	 */
-	nr_pages <<= (pvt->channel_count - 1);
-
 	debugf0("  (csrow=%d) DBAM map index= %d\n", csrow_nr, cs_mode);
-	debugf0("    nr_pages= %u  channel-count = %d\n",
+	debugf0("    nr_pages/dimm= %u  channel-count = %d\n",
 		nr_pages, pvt->channel_count);
 
 	return nr_pages;
@@ -2174,7 +2168,7 @@ static int init_csrows(struct mem_ctl_info *mci)
 			i, pvt->mc_node_id);
 
 		empty = 0;
-		csrow->nr_pages = amd64_csrow_nr_pages(pvt, 0, i);
+		nr_pages = amd64_csrow_nr_pages(pvt, 0, i);
 		get_cs_base_and_mask(pvt, i, 0, &base, &mask);
 		/* 8 bytes of resolution */
 
@@ -2192,6 +2186,8 @@ static int init_csrows(struct mem_ctl_info *mci)
 		for (j = 0; j < pvt->channel_count; j++) {
 			csrow->channels[j].dimm->mtype = mtype;
 			csrow->channels[j].dimm->edac_mode = edac_mode;
+			csrow->channels[j].dimm->n_pages = npages;
+
 		}
 
 		debugf1("  for MC node %d csrow %d:\n", pvt->mc_node_id, i);

@@ -718,15 +718,10 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 			npages = MiB_TO_PAGES(size);
 
 			csr = &mci->csrows[csrow];
-			csr->nr_pages = npages;
-
-			csr->csrow_idx = csrow;
-			csr->nr_channels = 1;
-
-			csr->channels[0].chan_idx = i;
-			csr->channels[0].ce_count = 0;
 
 			pvt->csrow_map[i][j] = csrow;
+
+			dimm->nr_pages = npages;
 
 			switch (banks) {
 			case 4:

@@ -643,15 +643,12 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 				 * csrows.
 				 */
 				csr = &mci->csrows[csrow];
-				csr->nr_pages = npages;
-				csr->csrow_idx = csrow;
-				csr->nr_channels = 1;
-				csr->channels[0].chan_idx = i;
 				pvt->csrow_map[i][j] = csrow;
 				last_page += npages;
 				csrow++;
 
 				csr->channels[0].dimm = dimm;
+				dimm->nr_pages = npages;
 				dimm->location.mc_channel = i;
 				dimm->location.mc_dimm_number = j;
 				dimm->grain = 32;
