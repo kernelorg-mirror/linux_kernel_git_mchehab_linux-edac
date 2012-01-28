@@ -1165,8 +1165,7 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 		for (channel = 0; channel < pvt->maxch; channel++)
 			csrow_megs += pvt->dimm_info[csrow][channel].megabytes;
 
-		p_csrow->nr_pages = csrow_megs << 8;
-
+		dimm->nr_pages = csrow_megs << 8;
 		dimm->location.mc_channel = channel;
 		dimm->location.mc_dimm_number = csrow / pvt->maxch;
 		dimm->grain = 8;

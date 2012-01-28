@@ -144,7 +144,7 @@ static ssize_t csrow_ce_count_show(struct csrow_info *csrow, char *data,
 static ssize_t csrow_size_show(struct csrow_info *csrow, char *data,
 				int private)
 {
-	return sprintf(data, "%u\n", PAGES_TO_MiB(csrow->nr_pages));
+	return sprintf(data, "%u\n", PAGES_TO_MiB(csrow->channels[0].dimm->nr_pages));
 }
 
 static ssize_t csrow_mem_type_show(struct csrow_info *csrow, char *data,
@@ -674,16 +674,17 @@ static ssize_t mci_ctl_name_show(struct mem_ctl_info *mci, char *data)
 
 static ssize_t mci_size_mb_show(struct mem_ctl_info *mci, char *data)
 {
-	int total_pages, csrow_idx;
+	int total_pages, csrow_idx, j;
 
 	for (total_pages = csrow_idx = 0; csrow_idx < mci->nr_csrows;
-		csrow_idx++) {
+	     csrow_idx++) {
 		struct csrow_info *csrow = &mci->csrows[csrow_idx];
 
-		if (!csrow->nr_pages)
-			continue;
+		for (j = 0; j < csrow->nr_channels; j++) {
+			struct dimm_info *dimm = csrow->channels[j].dimm;
 
-		total_pages += csrow->nr_pages;
+			total_pages += dimm->nr_pages;
+		}
 	}
 
 	return sprintf(data, "%u\n", PAGES_TO_MiB(total_pages));
@@ -1089,10 +1090,15 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	/* Make directories for each CSROW object under the mc<id> kobject
 	 */
 	for (i = 0; i < mci->nr_csrows; i++) {
-		csrow = &mci->csrows[i];
+		int n = 0;
 
-		/* Only expose populated CSROWs */
-		if (csrow->nr_pages > 0) {
+		csrow = &mci->csrows[i];
+		for (j = 0; j < csrow->nr_channels; j++) {
+			struct dimm_info *dimm = csrow->channels[j].dimm;
+			n += dimm->nr_pages;
+		}
+
+		if (n > 0) {
 			err = edac_create_csrow_object(mci, csrow, i);
 			if (err) {
 				debugf1("%s() failure: create csrow %d obj\n",
@@ -1106,6 +1112,9 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	 * Make directories for each DIMM object under the mc<id> kobject
 	 */
 	for (j = 0; j < mci->nr_dimms; j++) {
+		/* Only expose populated CSROWs */
+		if (mci->dimms[j].nr_pages == 0)
+			continue;
 		err = edac_create_dimm_object(mci, &mci->dimms[j] , j);
 		if (err) {
 			debugf1("%s() failure: create dimm %d obj\n",
@@ -1117,13 +1126,22 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	return 0;
 
 fail2:
-	for (j--; j >= 0; j--)
-		kobject_put(&mci->dimms[i].kobj);
+	for (j--; j >= 0; j--) {
+		if (mci->dimms[j].nr_pages)
+			kobject_put(&mci->dimms[i].kobj);
+	}
 
 	/* CSROW error: backout what has already been registered,  */
 fail1:
 	for (i--; i >= 0; i--) {
-		if (mci->csrows[i].nr_pages > 0) {
+		int n = 0;
+
+		csrow = &mci->csrows[i];
+		for (j = 0; j < csrow->nr_channels; j++) {
+			struct dimm_info *dimm = csrow->channels[j].dimm;
+			n += dimm->nr_pages;
+		}
+		if (n > 0) {
 			kobject_put(&mci->csrows[i].kobj);
 		}
 	}
@@ -1144,7 +1162,8 @@ fail0:
  */
 void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 {
-	int i;
+	struct csrow_info *csrow;
+	int i, j;
 
 	debugf0("%s()\n", __func__);
 
@@ -1155,7 +1174,14 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 		kobject_put(&mci->dimms[i].kobj);
 	}
 	for (i = 0; i < mci->nr_csrows; i++) {
-		if (mci->csrows[i].nr_pages > 0) {
+		int n = 0;
+
+		csrow = &mci->csrows[i];
+		for (j = 0; j < csrow->nr_channels; j++) {
+			struct dimm_info *dimm = csrow->channels[j].dimm;
+			n += dimm->nr_pages;
+		}
+		if (n > 0) {
 			debugf0("%s()  unreg csrow-%d\n", __func__, i);
 			kobject_put(&mci->csrows[i].kobj);
 		}
