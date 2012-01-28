@@ -378,9 +378,6 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 	 *
 	 */
 
-	mci->dimm_loc_type = DIMM_LOC_CSROW;
-	dimm = mci->dimms;
-	mci->nr_dimms = 0;
 	for (index = 0; index < mci->nr_csrows; index++) {
 		csrow = &mci->csrows[index];
 
@@ -406,11 +403,12 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 		 */
 		dtype = i82975x_dram_type(mch_window, index);
 		for (chan = 0; chan < csrow->nr_channels; chan++) {
-			mci->csrows[index].channels[chan].dimm = dimm;
+			dimm = mci->csrows[index].channels[chan].dimm;
+
+			if (!nr_pages)
+				continue;
 
 			dimm->nr_pages = nr_pages / csrow->nr_channels;
-			dimm->location.csrow = index;
-			dimm->location.csrow_channel = chan;
 			strncpy(csrow->channels[chan].dimm->label,
 					labels[(index >> 1) + (chan * 2)],
 					EDAC_MC_LABEL_LEN);
@@ -418,11 +416,9 @@ static void i82975x_init_csrows(struct mem_ctl_info *mci,
 			dimm->dtype = dtype;
 			dimm->mtype = MEM_DDR2; /* I82975x supports only DDR2 */
 			dimm->edac_mode = EDAC_SECDED; /* only supported */
-			dimm++;
-			mci->nr_dimms++;
 		}
 
-		if (cumul_size == last_cumul_size)
+		if (!nr_pages)
 			continue;	/* not populated */
 
 		csrow->first_page = last_cumul_size;

@@ -601,7 +601,6 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 	int csrow = 0;
 	enum edac_type mode;
 	enum mem_type mtype;
-	struct dimm_info *dimm;
 
 	/* Get data from the MC register, function 0 */
 	pdev = pvt->pci_mcr[0];
@@ -638,9 +637,6 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 		numrow(pvt->info.max_dod >> 6),
 		numcol(pvt->info.max_dod >> 9));
 
-	dimm = mci->dimms;
-	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
-	mci->nr_dimms = 0;
 	for (i = 0; i < NUM_CHANS; i++) {
 		u32 data, dimm_dod[3], value[8];
 
@@ -693,8 +689,15 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 			(data & REGISTERED_DIMM) ? 'R' : 'U');
 
 		for (j = 0; j < 3; j++) {
+			struct dimm_info *dimm = &mci->dimms[i * 3 + j];
 			u32 banks, ranks, rows, cols;
 			u32 size, npages;
+
+			dimm->mc_branch = -1;
+			dimm->mc_channel = i;
+			dimm->mc_dimm_number = j;
+			dimm->csrow = -1;
+			dimm->csrow_channel = -1;
 
 			if (!DIMM_PRESENT(dimm_dod[j]))
 				continue;
@@ -718,6 +721,7 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 			npages = MiB_TO_PAGES(size);
 
 			csr = &mci->csrows[csrow];
+			csr->channels[0].dimm = dimm;
 
 			pvt->csrow_map[i][j] = csrow;
 
@@ -737,19 +741,12 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 				dimm->dtype = DEV_UNKNOWN;
 			}
 
-			csr->channels[0].dimm = dimm;
-
-			dimm->location.mc_channel = i;
-			dimm->location.mc_dimm_number = j;
 			snprintf(dimm->label, sizeof(dimm->label),
 				 "CPU#%uChannel#%u_DIMM#%u",
 				 pvt->i7core_dev->socket, i, j);
 			dimm->grain = 8;
 			dimm->edac_mode = mode;
 			dimm->mtype = mtype;
-
-			mci->nr_dimms++;
-			dimm++;
 			csrow++;
 		}
 

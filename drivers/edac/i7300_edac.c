@@ -773,7 +773,6 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 	int rc = -ENODEV;
 	int mtr;
 	int ch, branch, slot, channel;
-	u32 nr_pages;
 	struct dimm_info *dimm;
 
 	pvt = mci->pvt_info;
@@ -800,7 +799,6 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 
 	/* Get the set of MTR[0-7] regs by each branch */
 	dimm = mci->dimms;
-	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
 	mci->nr_dimms = 0;
 	for (slot = 0; slot < MAX_SLOTS; slot++) {
 		int where = mtr_regs[slot];
@@ -813,19 +811,24 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 
 				dinfo = &pvt->dimm_info[slot][channel];
 
-				dimm->location.mc_channel = channel;
-				dimm->location.mc_dimm_number = slot;
+				dimm->mc_branch = branch;
+				dimm->mc_channel = ch;
+				dimm->mc_dimm_number = slot;
+				dimm->csrow = -1;
+				dimm->csrow_channel = -1;
 
 				mtr = decode_mtr(pvt, slot, ch, branch,
 						 dinfo, dimm);
+
+				mci->nr_dimms++;
+				dimm++;
+
 				/* if no DIMMS on this row, continue */
 				if (!MTR_DIMMS_PRESENT(mtr))
 					continue;
 
 				rc = 0;
 
-				mci->nr_dimms++;
-				dimm++;
 			}
 		}
 	}

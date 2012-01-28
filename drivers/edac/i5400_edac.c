@@ -1130,14 +1130,12 @@ static void i5400_get_mc_regs(struct mem_ctl_info *mci)
 static int i5400_init_csrows(struct mem_ctl_info *mci)
 {
 	struct i5400_pvt *pvt;
-	struct csrow_info *p_csrow;
 	int empty, channel_count;
 	int max_csrows;
 	int mtr;
-	int csrow_megs;
+	int size_mb;
 	int channel;
-	int csrow;
-	struct dimm_info *dimm;
+	int slot;
 
 	pvt = mci->pvt_info;
 
@@ -1146,34 +1144,30 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 
 	empty = 1;		/* Assume NO memory */
 
-	dimm = mci->dimms;
-	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
-	mci->nr_dimms = 0;
-	for (csrow = 0; csrow < max_csrows; csrow++) {
-		p_csrow = &mci->csrows[csrow];
+	for (slot = 0; slot < mci->nr_dimms; slot++) {
+		struct dimm_info *dimm = &mci->dimms[slot];
+		channel = slot % pvt->maxch;
 
-		p_csrow->csrow_idx = csrow;
+		dimm->mc_branch = channel / 2;
+		dimm->mc_channel = channel % 2;
+		dimm->mc_dimm_number = slot / pvt->maxch;
+		dimm->csrow = -1;
+		dimm->csrow_channel = -1;
 
 		/* use branch 0 for the basis */
-		mtr = determine_mtr(pvt, csrow, 0);
+		mtr = determine_mtr(pvt, slot, 0);
 
 		/* if no DIMMS on this row, continue */
 		if (!MTR_DIMMS_PRESENT(mtr))
 			continue;
 
-		csrow_megs = 0;
-		for (channel = 0; channel < pvt->maxch; channel++)
-			csrow_megs += pvt->dimm_info[csrow][channel].megabytes;
+		size_mb =  pvt->dimm_info[slot / pvt->maxch][channel].megabytes;
 
-		dimm->nr_pages = csrow_megs << 8;
-		dimm->location.mc_channel = channel;
-		dimm->location.mc_dimm_number = csrow / pvt->maxch;
+		dimm->nr_pages = size_mb << 8;
 		dimm->grain = 8;
 		dimm->dtype = MTR_DRAM_WIDTH(mtr) ? DEV_X8 : DEV_X4;
 		dimm->mtype = MEM_RDDR2;
 		dimm->edac_mode = EDAC_SECDED;
-		mci->nr_dimms++;
-		dimm++;
 
 		empty = 0;
 	}

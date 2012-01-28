@@ -848,35 +848,33 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 	int i;
 	unsigned long total_pages = 0UL;
 	struct i5100_priv *priv = mci->pvt_info;
-	struct dimm_info *dimm;
 
-	dimm = mci->dimms;
-	mci->dimm_loc_type = DIMM_LOC_MC_CHANNEL;
-	mci->nr_dimms = 0;
-	for (i = 0; i < mci->nr_csrows; i++) {
+	for (i = 0; i < mci->nr_dimms; i++) {
 		const unsigned long npages = i5100_npages(mci, i);
 		const unsigned chan = i5100_csrow_to_chan(mci, i);
 		const unsigned rank = i5100_csrow_to_rank(mci, i);
+		struct dimm_info *dimm = &mci->dimms[i];
 
-		if (!npages)
-			continue;
-
-		total_pages += npages;
-
-		mci->csrows[i].channels[0].dimm = dimm;
 		dimm->nr_pages = npages;
-		dimm->location.mc_channel = chan;
-		dimm->location.mc_dimm_number = rank;
-		dimm->grain = 32;
-		dimm->dtype = (priv->mtr[chan][rank].width == 4) ?
-			      DEV_X4 : DEV_X8;
-		dimm->mtype = MEM_RDDR2;
-		dimm->edac_mode = EDAC_SECDED;
-		snprintf(dimm->label, sizeof(dimm->label),
-			 "DIMM%u",
-			 i5100_rank_to_slot(mci, chan, rank));
-		mci->nr_dimms++;
-		dimm++;
+
+		dimm->mc_branch = -1;
+		dimm->mc_channel = chan;
+		dimm->mc_dimm_number = rank;
+		dimm->csrow = -1;
+		dimm->csrow_channel = -1;
+
+		if (npages) {
+			total_pages += npages;
+
+			dimm->grain = 32;
+			dimm->dtype = (priv->mtr[chan][rank].width == 4) ?
+				DEV_X4 : DEV_X8;
+			dimm->mtype = MEM_RDDR2;
+			dimm->edac_mode = EDAC_SECDED;
+			snprintf(dimm->label, sizeof(dimm->label),
+				"DIMM%u",
+				i5100_rank_to_slot(mci, chan, rank));
+		}
 	}
 }
 
