@@ -144,7 +144,13 @@ static ssize_t csrow_ce_count_show(struct csrow_info *csrow, char *data,
 static ssize_t csrow_size_show(struct csrow_info *csrow, char *data,
 				int private)
 {
-	return sprintf(data, "%u\n", PAGES_TO_MiB(csrow->channels[0].dimm->nr_pages));
+	int i;
+	u32 nr_pages = 0;
+
+	for (i = 0; i < csrow->nr_channels; i++)
+		nr_pages += csrow->channels[i].dimm->nr_pages;
+
+	return sprintf(data, "%u\n", PAGES_TO_MiB(nr_pages));
 }
 
 static ssize_t csrow_mem_type_show(struct csrow_info *csrow, char *data,
@@ -497,14 +503,42 @@ static ssize_t dimmdev_label_store(struct dimm_info *dimm,
 	return max_size;
 }
 
+static ssize_t dimmdev_size_show(struct dimm_info *dimm, char *data)
+{
+	return sprintf(data, "%u\n", PAGES_TO_MiB(dimm->nr_pages));
+}
+
+static ssize_t dimmdev_mem_type_show(struct dimm_info *dimm, char *data)
+{
+	return sprintf(data, "%s\n", mem_types[dimm->mtype]);
+}
+
+static ssize_t dimmdev_dev_type_show(struct dimm_info *dimm, char *data)
+{
+	return sprintf(data, "%s\n", dev_types[dimm->dtype]);
+}
+
+static ssize_t dimmdev_edac_mode_show(struct dimm_info *dimm, char *data)
+{
+	return sprintf(data, "%s\n", edac_caps[dimm->edac_mode]);
+}
+
 /* default cwrow<id>/attribute files */
-DIMMDEV_ATTR(label, S_IRUGO | S_IWUSR, dimmdev_label_show, dimmdev_label_store);
-DIMMDEV_ATTR(location, S_IRUGO, dimmdev_location_show, NULL);
+DIMMDEV_ATTR(dimm_label, S_IRUGO | S_IWUSR, dimmdev_label_show, dimmdev_label_store);
+DIMMDEV_ATTR(dimm_location, S_IRUGO, dimmdev_location_show, NULL);
+DIMMDEV_ATTR(dimm_size, S_IRUGO, dimmdev_size_show, NULL);
+DIMMDEV_ATTR(dimm_mem_type, S_IRUGO, dimmdev_mem_type_show, NULL);
+DIMMDEV_ATTR(dimm_dev_type, S_IRUGO, dimmdev_dev_type_show, NULL);
+DIMMDEV_ATTR(dimm_edac_mode, S_IRUGO, dimmdev_edac_mode_show, NULL);
 
 /* default attributes of the DIMM<id> object */
 static struct dimmdev_attribute *default_dimm_attr[] = {
-	&attr_label,
-	&attr_location,
+	&attr_dimm_label,
+	&attr_dimm_location,
+	&attr_dimm_size,
+	&attr_dimm_mem_type,
+	&attr_dimm_dev_type,
+	&attr_dimm_edac_mode,
 	NULL,
 };
 
