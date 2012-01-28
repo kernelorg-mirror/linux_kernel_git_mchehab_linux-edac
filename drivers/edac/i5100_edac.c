@@ -861,18 +861,10 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 		if (!npages)
 			continue;
 
-		/*
-		 * FIXME: these two are totally bogus -- I don't see how to
-		 * map them correctly to this structure...
-		 */
-		mci->csrows[i].nr_pages = npages;
-		mci->csrows[i].csrow_idx = i;
-		mci->csrows[i].mci = mci;
-		mci->csrows[i].nr_channels = 1;
-		mci->csrows[i].channels[0].csrow = mci->csrows + i;
 		total_pages += npages;
 
 		mci->csrows[i].channels[0].dimm = dimm;
+		dimm->nr_pages = npages;
 		dimm->location.mc_channel = chan;
 		dimm->location.mc_dimm_number = rank;
 		dimm->grain = 32;
