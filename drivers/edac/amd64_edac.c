@@ -2192,7 +2192,7 @@ static int init_csrows(struct mem_ctl_info *mci)
 		}
 
 		debugf1("  for MC node %d csrow %d:\n", pvt->mc_node_id, i);
-		debugf1("    nr_pages: %u\n", csrow->nr_pages);
+		debugf1("    nr_pages: %u\n", nr_pages);
 	}
 
 	return empty;
