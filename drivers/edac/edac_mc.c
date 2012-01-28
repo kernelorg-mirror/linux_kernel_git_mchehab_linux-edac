@@ -44,22 +44,23 @@ static void edac_mc_dump_channel(struct rank_info *chan)
 {
 	debugf4("\tchannel = %p\n", chan);
 	debugf4("\tchannel->chan_idx = %d\n", chan->chan_idx);
-	debugf4("\tchannel->ce_count = %d\n", chan->dimm->ce_count);
-		debugf4("\tchannel->label = '%s'\n", chan->dimm->label);
 	debugf4("\tchannel->csrow = %p\n\n", chan->csrow);
+
+	debugf4("\tdimm->ce_count = %d\n", chan->dimm->ce_count);
+	debugf4("\tdimm->label = '%s'\n", chan->dimm->label);
+	debugf4("\tdimm->nr_pages = 0x%x\n", chan->dimm->nr_pages);
 }
 
 static void edac_mc_dump_csrow(struct csrow_info *csrow)
 {
 	debugf4("\tcsrow = %p\n", csrow);
 	debugf4("\tcsrow->csrow_idx = %d\n", csrow->csrow_idx);
-	debugf4("\tcsrow->first_page = 0x%lx\n", csrow->first_page);
-	debugf4("\tcsrow->last_page = 0x%lx\n", csrow->last_page);
-	debugf4("\tcsrow->page_mask = 0x%lx\n", csrow->page_mask);
-	debugf4("\tcsrow->nr_pages = 0x%x\n", csrow->nr_pages);
 	debugf4("\tcsrow->nr_channels = %d\n", csrow->nr_channels);
 	debugf4("\tcsrow->channels = %p\n", csrow->channels);
 	debugf4("\tcsrow->mci = %p\n\n", csrow->mci);
+	debugf4("\tcsrow->first_page = 0x%lx\n", csrow->first_page);
+	debugf4("\tcsrow->last_page = 0x%lx\n", csrow->last_page);
+	debugf4("\tcsrow->page_mask = 0x%lx\n", csrow->page_mask);
 }
 
 static void edac_mc_dump_mci(struct mem_ctl_info *mci)
@@ -653,15 +654,19 @@ static void edac_mc_scrub_block(unsigned long page, unsigned long offset,
 int edac_mc_find_csrow_by_page(struct mem_ctl_info *mci, unsigned long page)
 {
 	struct csrow_info *csrows = mci->csrows;
-	int row, i;
+	int row, i, j, n;
 
 	debugf1("MC%d: %s(): 0x%lx\n", mci->mc_idx, __func__, page);
 	row = -1;
 
 	for (i = 0; i < mci->nr_csrows; i++) {
 		struct csrow_info *csrow = &csrows[i];
-
-		if (csrow->nr_pages == 0)
+		n = 0;
+		for (j = 0; j < csrow->nr_channels; j++) {
+			struct dimm_info *dimm = csrow->channels[j].dimm;
+			n += dimm->nr_pages;
+		}
+		if (n == 0)
 			continue;
 
 		debugf3("MC%d: %s(): first(0x%lx) page(0x%lx) last(0x%lx) "
@@ -670,9 +675,9 @@ int edac_mc_find_csrow_by_page(struct mem_ctl_info *mci, unsigned long page)
 			csrow->page_mask);
 
 		if ((page >= csrow->first_page) &&
-		    (page <= csrow->last_page) &&
-		    ((page & csrow->page_mask) ==
-		     (csrow->first_page & csrow->page_mask))) {
+		(page <= csrow->last_page) &&
+		((page & csrow->page_mask) ==
+		(csrow->first_page & csrow->page_mask))) {
 			row = i;
 			break;
 		}
