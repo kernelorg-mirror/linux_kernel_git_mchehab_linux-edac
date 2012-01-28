@@ -219,13 +219,15 @@ struct mem_ctl_info *edac_mc_alloc(unsigned sz_pvt, unsigned nr_csrows,
 	 * as most drivers are based on such assumption.
 	 */
 	if (!mci->nr_dimms) {
-		mci->dimm_loc_type = DIMM_LOC_CSROW;
 		dimm = mci->dimms;
 		for (row = 0; row < mci->nr_csrows; row++) {
 			for (chn = 0; chn < mci->csrows[row].nr_channels; chn++) {
 				mci->csrows[row].channels[chn].dimm = dimm;
-				dimm->location.csrow = row;
-				dimm->location.csrow_channel = chn;
+				dimm->mc_branch = -1;
+				dimm->mc_channel = -1;
+				dimm->mc_dimm_number = -1;
+				dimm->csrow = row;
+				dimm->csrow_channel = chn;
 				dimm++;
 				mci->nr_dimms++;
 			}

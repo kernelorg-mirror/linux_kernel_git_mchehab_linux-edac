@@ -2142,7 +2142,7 @@ static int init_csrows(struct mem_ctl_info *mci)
 	struct csrow_info *csrow;
 	struct amd64_pvt *pvt = mci->pvt_info;
 	u64 base, mask;
-	u32 val;
+	u32 val, nr_pages;
 	int i, j, empty = 1;
 	enum mem_type mtype;
 	enum edac_type edac_mode;
@@ -2186,12 +2186,12 @@ static int init_csrows(struct mem_ctl_info *mci)
 		for (j = 0; j < pvt->channel_count; j++) {
 			csrow->channels[j].dimm->mtype = mtype;
 			csrow->channels[j].dimm->edac_mode = edac_mode;
-			csrow->channels[j].dimm->n_pages = npages;
+			csrow->channels[j].dimm->nr_pages = nr_pages;
 
 		}
 
 		debugf1("  for MC node %d csrow %d:\n", pvt->mc_node_id, i);
-		debugf1("    nr_pages: %u\n", csrow->nr_pages);
+		debugf1("    nr_pages: %u\n", nr_pages);
 	}
 
 	return empty;

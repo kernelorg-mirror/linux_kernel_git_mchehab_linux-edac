@@ -341,25 +341,17 @@ enum scrub_type {
  * PS - I enjoyed writing all that about as much as you enjoyed reading it.
  */
 
-enum dimm_location_type {
-	DIMM_LOC_CSROW,
-	DIMM_LOC_MC_CHANNEL,
-};
-
-/* FIXME: add a per-dimm ce error count */
+/* FIXME: add the proper per-location error counts */
 struct dimm_info {
 	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
-	unsigned memory_controller;
-	union {
-		struct {
-			unsigned mc_channel;
-			unsigned mc_dimm_number;
-		};
-		struct {
-			unsigned csrow;
-			unsigned csrow_channel;
-		};
-	} location;
+
+	/* Memory location data */
+	int mc_branch;
+	int mc_channel;
+	int csrow;
+	int mc_dimm_number;
+	int csrow_channel;
+
 	struct kobject kobj;		/* sysfs kobject for this csrow */
 	struct mem_ctl_info *mci;	/* the parent */
 
@@ -479,7 +471,6 @@ struct mem_ctl_info {
 	/*
 	 * DIMM info. Will eventually remove the entire csrows_info some day
 	 */
-	enum dimm_location_type dimm_loc_type;
 	unsigned nr_dimms;
 	struct dimm_info *dimms;
 

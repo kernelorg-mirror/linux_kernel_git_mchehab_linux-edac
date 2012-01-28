@@ -471,14 +471,24 @@ static const struct sysfs_ops dimmfs_ops = {
 /* show/store functions for DIMM Label attributes */
 static ssize_t dimmdev_location_show(struct dimm_info *dimm, char *data)
 {
-	if (dimm->mci->dimm_loc_type == DIMM_LOC_CSROW)
-		return sprintf(data, "csrow %d, channel %d\n",
-			       dimm->location.csrow,
-			       dimm->location.csrow_channel);
-	else
-		return sprintf(data, "channel %d, dimm %d\n",
-			       dimm->location.mc_channel,
-			       dimm->location.mc_dimm_number);
+	char *p = data;
+
+	if (dimm->mc_branch >= 0)
+		p += sprintf(p, "branch %d ", dimm->mc_branch);
+
+	if (dimm->mc_channel >= 0)
+		p += sprintf(p, "channel %d ", dimm->mc_channel);
+
+	if (dimm->csrow >= 0)
+		p += sprintf(p, "csrow %d ", dimm->csrow);
+
+	if (dimm->csrow_channel >= 0)
+		p += sprintf(p, "cs_channel %d ", dimm->csrow_channel);
+
+	if (dimm->mc_dimm_number >= 0)
+		p += sprintf(p, "dimm %d ", dimm->mc_dimm_number);
+
+	return p - data;
 }
 
 static ssize_t dimmdev_label_show(struct dimm_info *dimm, char *data)
