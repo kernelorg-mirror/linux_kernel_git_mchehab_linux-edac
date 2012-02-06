@@ -129,13 +129,13 @@ static const char *edac_caps[] = {
  */
 
 /* Set of more default csrow<id> attribute show/store functions */
-static ssize_t csrow_ue_count_show(struct csrow_info *csrow, char *data,
+static ssize_t csrow_ue_mc_show(struct csrow_info *csrow, char *data,
 				int private)
 {
 	return sprintf(data, "%u\n", csrow->ue_count);
 }
 
-static ssize_t csrow_ce_count_show(struct csrow_info *csrow, char *data,
+static ssize_t csrow_ce_mc_show(struct csrow_info *csrow, char *data,
 				int private)
 {
 	return sprintf(data, "%u\n", csrow->ce_count);
@@ -201,8 +201,8 @@ static ssize_t channel_dimm_label_store(struct csrow_info *csrow,
 	return max_size;
 }
 
-/* show function for dynamic chX_ce_count attribute */
-static ssize_t channel_ce_count_show(struct csrow_info *csrow,
+/* show function for dynamic chX_ce_mc attribute */
+static ssize_t channel_ce_mc_show(struct csrow_info *csrow,
 				char *data, int channel)
 {
 	return sprintf(data, "%u\n", csrow->channels[channel].ce_count);
@@ -263,8 +263,8 @@ CSROWDEV_ATTR(size_mb, S_IRUGO, csrow_size_show, NULL, 0);
 CSROWDEV_ATTR(dev_type, S_IRUGO, csrow_dev_type_show, NULL, 0);
 CSROWDEV_ATTR(mem_type, S_IRUGO, csrow_mem_type_show, NULL, 0);
 CSROWDEV_ATTR(edac_mode, S_IRUGO, csrow_edac_mode_show, NULL, 0);
-CSROWDEV_ATTR(ue_count, S_IRUGO, csrow_ue_count_show, NULL, 0);
-CSROWDEV_ATTR(ce_count, S_IRUGO, csrow_ce_count_show, NULL, 0);
+CSROWDEV_ATTR(ue_mc, S_IRUGO, csrow_ue_mc_show, NULL, 0);
+CSROWDEV_ATTR(ce_mc, S_IRUGO, csrow_ce_mc_show, NULL, 0);
 
 /* default attributes of the CSROW<id> object */
 static struct csrowdev_attribute *default_csrow_attr[] = {
@@ -272,8 +272,8 @@ static struct csrowdev_attribute *default_csrow_attr[] = {
 	&attr_mem_type,
 	&attr_edac_mode,
 	&attr_size_mb,
-	&attr_ue_count,
-	&attr_ce_count,
+	&attr_ue_mc,
+	&attr_ce_mc,
 	NULL,
 };
 
@@ -301,22 +301,22 @@ static struct csrowdev_attribute *dynamic_csrow_dimm_attr[] = {
 	&attr_ch5_dimm_label
 };
 
-/* possible dynamic channel ce_count attribute files */
-CSROWDEV_ATTR(ch0_ce_count, S_IRUGO | S_IWUSR, channel_ce_count_show, NULL, 0);
-CSROWDEV_ATTR(ch1_ce_count, S_IRUGO | S_IWUSR, channel_ce_count_show, NULL, 1);
-CSROWDEV_ATTR(ch2_ce_count, S_IRUGO | S_IWUSR, channel_ce_count_show, NULL, 2);
-CSROWDEV_ATTR(ch3_ce_count, S_IRUGO | S_IWUSR, channel_ce_count_show, NULL, 3);
-CSROWDEV_ATTR(ch4_ce_count, S_IRUGO | S_IWUSR, channel_ce_count_show, NULL, 4);
-CSROWDEV_ATTR(ch5_ce_count, S_IRUGO | S_IWUSR, channel_ce_count_show, NULL, 5);
+/* possible dynamic channel ce_mc attribute files */
+CSROWDEV_ATTR(ch0_ce_mc, S_IRUGO | S_IWUSR, channel_ce_mc_show, NULL, 0);
+CSROWDEV_ATTR(ch1_ce_mc, S_IRUGO | S_IWUSR, channel_ce_mc_show, NULL, 1);
+CSROWDEV_ATTR(ch2_ce_mc, S_IRUGO | S_IWUSR, channel_ce_mc_show, NULL, 2);
+CSROWDEV_ATTR(ch3_ce_mc, S_IRUGO | S_IWUSR, channel_ce_mc_show, NULL, 3);
+CSROWDEV_ATTR(ch4_ce_mc, S_IRUGO | S_IWUSR, channel_ce_mc_show, NULL, 4);
+CSROWDEV_ATTR(ch5_ce_mc, S_IRUGO | S_IWUSR, channel_ce_mc_show, NULL, 5);
 
-/* Total possible dynamic ce_count attribute file table */
-static struct csrowdev_attribute *dynamic_csrow_ce_count_attr[] = {
-	&attr_ch0_ce_count,
-	&attr_ch1_ce_count,
-	&attr_ch2_ce_count,
-	&attr_ch3_ce_count,
-	&attr_ch4_ce_count,
-	&attr_ch5_ce_count
+/* Total possible dynamic ce_mc attribute file table */
+static struct csrowdev_attribute *dynamic_csrow_ce_mc_attr[] = {
+	&attr_ch0_ce_mc,
+	&attr_ch1_ce_mc,
+	&attr_ch2_ce_mc,
+	&attr_ch3_ce_mc,
+	&attr_ch4_ce_mc,
+	&attr_ch5_ce_mc
 };
 
 #define EDAC_NR_CHANNELS	6
@@ -338,9 +338,9 @@ static int edac_create_channel_files(struct kobject *kobj, int chan)
 		/* create the CE Count attribute file */
 		err = sysfs_create_file(kobj,
 					(struct attribute *)
-					dynamic_csrow_ce_count_attr[chan]);
+					dynamic_csrow_ce_mc_attr[chan]);
 	} else {
-		debugf1("%s()  dimm labels and ce_count files created",
+		debugf1("%s()  dimm labels and ce_mc files created",
 			__func__);
 	}
 
@@ -400,7 +400,7 @@ static int edac_create_csrow_object(struct mem_ctl_info *mci,
 	 */
 
 	/* Create the dyanmic attribute files on this csrow,
-	 * namely, the DIMM labels and the channel ce_count
+	 * namely, the DIMM labels and the channel ce_mc
 	 */
 	for (chan = 0; chan < csrow->nr_channels; chan++) {
 		err = edac_create_channel_files(&csrow->kobj, chan);
@@ -426,14 +426,14 @@ err_out:
 static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
 					const char *data, size_t count)
 {
-	int row, chan;
+	int cnt, row, chan, i;
 
+	mci->ue_mc = 0;
+	mci->ce_mc = 0;
 	mci->ue_noinfo_count = 0;
 	mci->ce_noinfo_count = 0;
-	mci->ue_count = 0;
-	mci->ce_count = 0;
 
-	for (row = 0; row < mci->nr_csrows; row++) {
+	for (row = 0; row < mci->num_csrows; row++) {
 		struct csrow_info *ri = &mci->csrows[row];
 
 		ri->ue_count = 0;
@@ -441,6 +441,13 @@ static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
 
 		for (chan = 0; chan < ri->nr_channels; chan++)
 			ri->channels[chan].ce_count = 0;
+	}
+
+	cnt = 1;
+	for (i = 0; i < mci->n_layers; i++) {
+		cnt *= mci->layers[i].size;
+		memset(mci->ce_per_layer[i], 0, cnt);
+		memset(mci->ue_per_layer[i], 0, cnt);
 	}
 
 	mci->start_time = jiffies;
@@ -498,14 +505,14 @@ static ssize_t mci_sdram_scrub_rate_show(struct mem_ctl_info *mci, char *data)
 }
 
 /* default attribute files for the MCI object */
-static ssize_t mci_ue_count_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_ue_mc_show(struct mem_ctl_info *mci, char *data)
 {
-	return sprintf(data, "%d\n", mci->ue_count);
+	return sprintf(data, "%d\n", mci->ue_mc);
 }
 
-static ssize_t mci_ce_count_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_ce_mc_show(struct mem_ctl_info *mci, char *data)
 {
-	return sprintf(data, "%d\n", mci->ce_count);
+	return sprintf(data, "%d\n", mci->ce_mc);
 }
 
 static ssize_t mci_ce_noinfo_show(struct mem_ctl_info *mci, char *data)
@@ -532,7 +539,7 @@ static ssize_t mci_size_mb_show(struct mem_ctl_info *mci, char *data)
 {
 	int total_pages, csrow_idx, j;
 
-	for (total_pages = csrow_idx = 0; csrow_idx < mci->nr_csrows;
+	for (total_pages = csrow_idx = 0; csrow_idx < mci->num_csrows;
 	     csrow_idx++) {
 		struct csrow_info *csrow = &mci->csrows[csrow_idx];
 
@@ -600,8 +607,8 @@ MCIDEV_ATTR(size_mb, S_IRUGO, mci_size_mb_show, NULL);
 MCIDEV_ATTR(seconds_since_reset, S_IRUGO, mci_seconds_show, NULL);
 MCIDEV_ATTR(ue_noinfo_count, S_IRUGO, mci_ue_noinfo_show, NULL);
 MCIDEV_ATTR(ce_noinfo_count, S_IRUGO, mci_ce_noinfo_show, NULL);
-MCIDEV_ATTR(ue_count, S_IRUGO, mci_ue_count_show, NULL);
-MCIDEV_ATTR(ce_count, S_IRUGO, mci_ce_count_show, NULL);
+MCIDEV_ATTR(ue_mc, S_IRUGO, mci_ue_mc_show, NULL);
+MCIDEV_ATTR(ce_mc, S_IRUGO, mci_ce_mc_show, NULL);
 
 /* memory scrubber attribute file */
 MCIDEV_ATTR(sdram_scrub_rate, S_IRUGO | S_IWUSR, mci_sdram_scrub_rate_show,
@@ -614,8 +621,8 @@ static struct mcidev_sysfs_attribute *mci_attr[] = {
 	&mci_attr_seconds_since_reset,
 	&mci_attr_ue_noinfo_count,
 	&mci_attr_ce_noinfo_count,
-	&mci_attr_ue_count,
-	&mci_attr_ce_count,
+	&mci_attr_ue_mc,
+	&mci_attr_ce_mc,
 	&mci_attr_sdram_scrub_rate,
 	NULL
 };
@@ -945,7 +952,7 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	/* Make directories for each CSROW object under the mc<id> kobject
 	 */
-	for (i = 0; i < mci->nr_csrows; i++) {
+	for (i = 0; i < mci->num_csrows; i++) {
 		int n = 0;
 
 		csrow = &mci->csrows[i];
@@ -1002,7 +1009,7 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	/* remove all csrow kobjects */
 	debugf4("%s()  unregister this mci kobj\n", __func__);
-	for (i = 0; i < mci->nr_csrows; i++) {
+	for (i = 0; i < mci->num_csrows; i++) {
 		int n = 0;
 
 		csrow = &mci->csrows[i];
