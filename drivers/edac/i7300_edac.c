@@ -464,17 +464,15 @@ static void i7300_process_fbd_error(struct mem_ctl_info *mci)
 				FERR_FAT_FBD, error_reg);
 
 		snprintf(pvt->tmp_prt_buffer, PAGE_SIZE,
-			"FATAL (Branch=%d DRAM-Bank=%d %s "
-			"RAS=%d CAS=%d Err=0x%lx (%s))",
-			branch, bank,
-			is_wr ? "RDWR" : "RD",
-			ras, cas,
-			errors, specific);
+			 "Bank=%d RAS=%d CAS=%d Err=0x%lx (%s))",
+			 bank, ras, cas, errors, specific);
 
-		/* Call the helper to output message */
-		edac_mc_handle_fbd_ue(mci, rank, branch << 1,
-				      (branch << 1) + 1,
-				      pvt->tmp_prt_buffer);
+		edac_mc_handle_error(HW_EVENT_ERR_FATAL,
+				     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
+				     branch, -1, rank, -1, -1,
+				     is_wr ? "Write error" : "Read error",
+				     pvt->tmp_prt_buffer);
+
 	}
 
 	/* read in the 1st NON-FATAL error register */
@@ -513,23 +511,15 @@ static void i7300_process_fbd_error(struct mem_ctl_info *mci)
 
 		/* Form out message */
 		snprintf(pvt->tmp_prt_buffer, PAGE_SIZE,
-			"Corrected error (Branch=%d, Channel %d), "
-			" DRAM-Bank=%d %s "
-			"RAS=%d CAS=%d, CE Err=0x%lx, Syndrome=0x%08x(%s))",
-			branch, channel,
-			bank,
-			is_wr ? "RDWR" : "RD",
-			ras, cas,
-			errors, syndrome, specific);
+			 "DRAM-Bank=%d RAS=%d CAS=%d, Err=0x%lx (%s))",
+			 bank, ras, cas, errors, specific);
 
-		/*
-		 * Call the helper to output message
-		 * NOTE: Errors are reported per-branch, and not per-channel
-		 *	 Currently, we don't know how to identify the right
-		 *	 channel.
-		 */
-		edac_mc_handle_fbd_ce(mci, rank, channel,
-				      pvt->tmp_prt_buffer);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0,
+				     syndrome,
+				     branch >> 1, channel % 2, rank, -1, -1,
+				     is_wr ? "Write error" : "Read error",
+				     pvt->tmp_prt_buffer);
 	}
 	return;
 }
@@ -799,7 +789,7 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 
 	/* Get the set of MTR[0-7] regs by each branch */
 	dimm = mci->dimms;
-	mci->nr_dimms = 0;
+	mci->tot_dimms = 0;
 	for (slot = 0; slot < MAX_SLOTS; slot++) {
 		int where = mtr_regs[slot];
 		for (branch = 0; branch < MAX_BRANCHES; branch++) {
@@ -811,16 +801,10 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 
 				dinfo = &pvt->dimm_info[slot][channel];
 
-				dimm->mc_branch = branch;
-				dimm->mc_channel = ch;
-				dimm->mc_dimm_number = slot;
-				dimm->csrow = -1;
-				dimm->csrow_channel = -1;
-
 				mtr = decode_mtr(pvt, slot, ch, branch,
 						 dinfo, dimm);
 
-				mci->nr_dimms++;
+				mci->tot_dimms++;
 				dimm++;
 
 				/* if no DIMMS on this row, continue */
@@ -1078,7 +1062,10 @@ static int __devinit i7300_init_one(struct pci_dev *pdev,
 		__func__, num_channels, num_dimms_per_channel, num_csrows);
 
 	/* allocate a new MC control structure */
-	mci = edac_mc_alloc(sizeof(*pvt), num_csrows, num_channels, 0);
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    MAX_BRANCHES, num_channels / MAX_BRANCHES,
+			    num_dimms_per_channel,
+			    num_csrows, num_channels, sizeof(*pvt));
 
 	if (mci == NULL)
 		return -ENOMEM;

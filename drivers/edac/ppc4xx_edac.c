@@ -214,7 +214,7 @@ static struct platform_driver ppc4xx_edac_driver = {
  * TODO: The row and channel parameters likely need to be dynamically
  * set based on the aforementioned variant controller realizations.
  */
-static const unsigned ppc4xx_edac_nr_csrows = 2;
+static const unsigned ppc4xx_edac_num_csrows = 2;
 static const unsigned ppc4xx_edac_nr_chans = 1;
 
 /*
@@ -330,7 +330,7 @@ ppc4xx_edac_generate_bank_message(const struct mem_ctl_info *mci,
 	size -= n;
 	total += n;
 
-	for (rows = 0, row = 0; row < mci->nr_csrows; row++) {
+	for (rows = 0, row = 0; row < mci->num_csrows; row++) {
 		if (ppc4xx_edac_check_bank_error(status, row)) {
 			n = snprintf(buffer, size, "%s%u",
 					(rows++ ? ", " : ""), row);
@@ -725,9 +725,12 @@ ppc4xx_edac_handle_ce(struct mem_ctl_info *mci,
 
 	ppc4xx_edac_generate_message(mci, status, message, sizeof(message));
 
-	for (row = 0; row < mci->nr_csrows; row++)
+	for (row = 0; row < mci->num_csrows; row++)
 		if (ppc4xx_edac_check_bank_error(status, row))
-			edac_mc_handle_ce_no_info(mci, message);
+			edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+					     HW_EVENT_SCOPE_MC, mci, 0, 0, 0,
+					     -1, -1, -1, -1, -1,
+					     message, "");
 }
 
 /**
@@ -753,9 +756,13 @@ ppc4xx_edac_handle_ue(struct mem_ctl_info *mci,
 
 	ppc4xx_edac_generate_message(mci, status, message, sizeof(message));
 
-	for (row = 0; row < mci->nr_csrows; row++)
+	for (row = 0; row < mci->num_csrows; row++)
 		if (ppc4xx_edac_check_bank_error(status, row))
-			edac_mc_handle_ue(mci, page, offset, row, message);
+			edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+					     HW_EVENT_SCOPE_MC, mci,
+					     page, offset, 0,
+					     -1, -1, -1, -1, -1,
+					     message, "");
 }
 
 /**
@@ -917,7 +924,7 @@ ppc4xx_edac_init_csrows(struct mem_ctl_info *mci, u32 mcopt1)
 	 * 1:1 with a controller bank/rank.
 	 */
 
-	for (row = 0; row < mci->nr_csrows; row++) {
+	for (row = 0; row < mci->num_csrows; row++) {
 		struct csrow_info *csi = &mci->csrows[row];
 
 		/*
@@ -1279,10 +1286,12 @@ static int __devinit ppc4xx_edac_probe(struct platform_device *op)
 	 * initialization.
 	 */
 
-	mci = edac_mc_alloc(sizeof(struct ppc4xx_edac_pdata),
-			    ppc4xx_edac_nr_csrows,
+	mci = edac_mc_alloc(ppc4xx_edac_instance,
+			    EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    0, 0, ppc4xx_edac_num_csrows * ppc4xx_edac_nr_chans,
+			    ppc4xx_edac_num_csrows,
 			    ppc4xx_edac_nr_chans,
-			    ppc4xx_edac_instance);
+			    sizeof(struct ppc4xx_edac_pdata));
 
 	if (mci == NULL) {
 		ppc4xx_edac_printk(KERN_ERR, "%s: "
