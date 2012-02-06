@@ -532,13 +532,15 @@ static void i5400_proccess_non_recoverable_info(struct mem_ctl_info *mci,
 	int ras, cas;
 	int errnum;
 	char *type = NULL;
+	enum hw_event_mc_err_type tp_event = HW_EVENT_ERR_UNCORRECTED;
 
 	if (!allErrors)
 		return;		/* if no error, return now */
 
-	if (allErrors &  ERROR_FAT_MASK)
+	if (allErrors &  ERROR_FAT_MASK) {
 		type = "FATAL";
-	else if (allErrors & FERR_NF_UNCORRECTABLE)
+		tp_event = HW_EVENT_ERR_FATAL;
+	} else if (allErrors & FERR_NF_UNCORRECTABLE)
 		type = "NON-FATAL uncorrected";
 	else
 		type = "NON-FATAL recoverable";
@@ -566,13 +568,14 @@ static void i5400_proccess_non_recoverable_info(struct mem_ctl_info *mci,
 
 	/* Form out message */
 	snprintf(msg, sizeof(msg),
-		 "%s (Branch=%d DRAM-Bank=%d Buffer ID = %d RDWR=%s "
-		 "RAS=%d CAS=%d %s Err=0x%lx (%s))",
-		 type, branch >> 1, bank, buf_id, rdwr_str(rdwr), ras, cas,
-		 type, allErrors, error_name[errnum]);
+		 "Bank=%d Buffer ID = %d RAS=%d CAS=%d Err=0x%lx (%s)",
+		 bank, buf_id, ras, cas, allErrors, error_name[errnum]);
 
-	/* Call the helper to output message */
-	edac_mc_handle_fbd_ue(mci, rank, channel, channel + 1, msg);
+	edac_mc_handle_error(tp_event,
+			     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
+			     branch >> 1, -1, rank, -1, -1,
+			     rdwr ? "Write error" : "Read error",
+			     msg);
 }
 
 /*
@@ -642,8 +645,11 @@ static void i5400_process_nonfatal_error_info(struct mem_ctl_info *mci,
 			 branch >> 1, bank, rdwr_str(rdwr), ras, cas,
 			 allErrors, error_name[errnum]);
 
-		/* Call the helper to output message */
-		edac_mc_handle_fbd_ce(mci, rank, channel, msg);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
+				     branch >> 1, channel % 2, rank, -1, -1,
+				     rdwr ? "Write error" : "Read error",
+				     msg);
 
 		return;
 	}
@@ -1144,15 +1150,9 @@ static int i5400_init_csrows(struct mem_ctl_info *mci)
 
 	empty = 1;		/* Assume NO memory */
 
-	for (slot = 0; slot < mci->nr_dimms; slot++) {
+	for (slot = 0; slot < mci->tot_dimms; slot++) {
 		struct dimm_info *dimm = &mci->dimms[slot];
 		channel = slot % pvt->maxch;
-
-		dimm->mc_branch = channel / 2;
-		dimm->mc_channel = channel % 2;
-		dimm->mc_dimm_number = slot / pvt->maxch;
-		dimm->csrow = -1;
-		dimm->csrow_channel = -1;
 
 		/* use branch 0 for the basis */
 		mtr = determine_mtr(pvt, slot, 0);
@@ -1239,7 +1239,9 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 		__func__, num_channels, num_dimms_per_channel, num_csrows);
 
 	/* allocate a new MC control structure */
-	mci = edac_mc_alloc(sizeof(*pvt), num_csrows, num_channels, 0);
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    2, num_channels, num_dimms_per_channel,
+			    num_csrows, num_channels, sizeof(*pvt));
 
 	if (mci == NULL)
 		return -ENOMEM;

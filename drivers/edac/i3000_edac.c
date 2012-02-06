@@ -245,7 +245,10 @@ static int i3000_process_error_info(struct mem_ctl_info *mci,
 		return 1;
 
 	if ((info->errsts ^ info->errsts2) & I3000_ERRSTS_BITS) {
-		edac_mc_handle_ce_no_info(mci, "UE overwrote CE");
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+				     HW_EVENT_SCOPE_MC, mci, 0, 0, 0,
+				     -1, -1, -1, -1, -1,
+				     "UE overwrote CE", "");
 		info->errsts = info->errsts2;
 	}
 
@@ -256,10 +259,18 @@ static int i3000_process_error_info(struct mem_ctl_info *mci,
 	row = edac_mc_find_csrow_by_page(mci, pfn);
 
 	if (info->errsts & I3000_ERRSTS_UE)
-		edac_mc_handle_ue(mci, pfn, offset, row, "i3000 UE");
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW, mci,
+				     pfn, offset, 0,
+				     -1, -1, -1, row, -1,
+				     "i3000 UE", "");
 	else
-		edac_mc_handle_ce(mci, pfn, offset, info->derrsyn, row,
-				multi_chan ? channel : 0, "i3000 CE");
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+				     pfn, offset, info->derrsyn,
+				     -1, -1, -1, row,
+				     multi_chan ? channel : 0,
+				     "i3000 CE", "");
 
 	return 1;
 }
@@ -347,7 +358,11 @@ static int i3000_probe1(struct pci_dev *pdev, int dev_idx)
 	 */
 	interleaved = i3000_is_interleaved(c0dra, c1dra, c0drb, c1drb);
 	nr_channels = interleaved ? 2 : 1;
-	mci = edac_mc_alloc(0, I3000_RANKS / nr_channels, nr_channels, 0);
+
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    -1, -1, I3000_RANKS,
+			    I3000_RANKS / nr_channels, nr_channels,
+			    0);
 	if (!mci)
 		return -ENOMEM;
 
@@ -375,7 +390,7 @@ static int i3000_probe1(struct pci_dev *pdev, int dev_idx)
 	 * If we're in interleaved mode then we're only walking through
 	 * the ranks of controller 0, so we double all the values we see.
 	 */
-	for (last_cumul_size = i = 0; i < mci->nr_csrows; i++) {
+	for (last_cumul_size = i = 0; i < mci->num_csrows; i++) {
 		u8 value;
 		u32 cumul_size;
 		struct csrow_info *csrow = &mci->csrows[i];
