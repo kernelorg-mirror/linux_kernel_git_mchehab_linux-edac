@@ -471,9 +471,17 @@ static const struct sysfs_ops dimmfs_ops = {
 /* show/store functions for DIMM Label attributes */
 static ssize_t dimmdev_location_show(struct dimm_info *dimm, char *data)
 {
-	return sprintf(data, "csrow %d, channel %d\n",
-		       dimm->csrow,
-		       dimm->csrow_channel);
+	struct mem_ctl_info *mci = dimm->mci;
+	int i;
+	char *p = data;
+
+	for (i = 0; i <= mci->n_layers; i++) {
+		p += sprintf(p, "%s %d ",
+			     edac_layer_name[mci->layers[i].type],
+			     dimm->location[i]);
+	}
+
+	return p - data;
 }
 
 static ssize_t dimmdev_label_show(struct dimm_info *dimm, char *data)
@@ -599,14 +607,14 @@ err_out:
 static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
 					const char *data, size_t count)
 {
-	int row, chan;
-
+	int cnt, row, chan, i;
+	mci->ue_mc = 0;
+	mci->ce_mc = 0;
 	mci->ue_noinfo_count = 0;
 	mci->ce_noinfo_count = 0;
-	mci->ue_count = 0;
-	mci->ce_count = 0;
 
-	for (row = 0; row < mci->nr_csrows; row++) {
+
+	for (row = 0; row < mci->num_csrows; row++) {
 		struct csrow_info *ri = &mci->csrows[row];
 
 		ri->ue_count = 0;
@@ -614,6 +622,13 @@ static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
 
 		for (chan = 0; chan < ri->nr_channels; chan++)
 			ri->channels[chan].ce_count = 0;
+	}
+
+	cnt = 1;
+	for (i = 0; i < mci->n_layers; i++) {
+		cnt *= mci->layers[i].size;
+		memset(mci->ce_per_layer[i], 0, cnt);
+		memset(mci->ue_per_layer[i], 0, cnt);
 	}
 
 	mci->start_time = jiffies;
@@ -673,12 +688,12 @@ static ssize_t mci_sdram_scrub_rate_show(struct mem_ctl_info *mci, char *data)
 /* default attribute files for the MCI object */
 static ssize_t mci_ue_count_show(struct mem_ctl_info *mci, char *data)
 {
-	return sprintf(data, "%d\n", mci->ue_count);
+	return sprintf(data, "%d\n", mci->ue_mc);
 }
 
 static ssize_t mci_ce_count_show(struct mem_ctl_info *mci, char *data)
 {
-	return sprintf(data, "%d\n", mci->ce_count);
+	return sprintf(data, "%d\n", mci->ce_mc);
 }
 
 static ssize_t mci_ce_noinfo_show(struct mem_ctl_info *mci, char *data)
@@ -705,7 +720,7 @@ static ssize_t mci_size_mb_show(struct mem_ctl_info *mci, char *data)
 {
 	int total_pages, csrow_idx, j;
 
-	for (total_pages = csrow_idx = 0; csrow_idx < mci->nr_csrows;
+	for (total_pages = csrow_idx = 0; csrow_idx < mci->num_csrows;
 	     csrow_idx++) {
 		struct csrow_info *csrow = &mci->csrows[csrow_idx];
 
@@ -1118,7 +1133,7 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	/* Make directories for each CSROW object under the mc<id> kobject
 	 */
-	for (i = 0; i < mci->nr_csrows; i++) {
+	for (i = 0; i < mci->num_csrows; i++) {
 		int n = 0;
 
 		csrow = &mci->csrows[i];
@@ -1140,11 +1155,24 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	/*
 	 * Make directories for each DIMM object under the mc<id> kobject
 	 */
-	for (j = 0; j < mci->nr_dimms; j++) {
-		/* Only expose populated CSROWs */
-		if (mci->dimms[j].nr_pages == 0)
+	for (j = 0; j < mci->tot_dimms; j++) {
+		struct dimm_info *dimm = &mci->dimms[j];
+		/* Only expose populated DIMMs */
+		if (dimm->nr_pages == 0)
 			continue;
-		err = edac_create_dimm_object(mci, &mci->dimms[j] , j);
+#ifdef CONFIG_EDAC_DEBUG
+		debugf1("%s creating dimm%d, located at ",
+			__func__, j);
+		if (edac_debug_level >= 1) {
+			int lay;
+			for (lay = 0; lay < mci->n_layers; lay++)
+				printk(KERN_CONT "%s %d ",
+					edac_layer_name[mci->layers[lay].type],
+					dimm->location[lay]);
+			printk(KERN_CONT "\n");
+		}
+#endif
+		err = edac_create_dimm_object(mci, dimm, j);
 		if (err) {
 			debugf1("%s() failure: create dimm %d obj\n",
 				__func__, j);
@@ -1197,11 +1225,11 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	/* remove all csrow kobjects */
 	debugf4("%s()  unregister this mci kobj\n", __func__);
-	for (i = 0; i < mci->nr_dimms; i++) {
+	for (i = 0; i < mci->tot_dimms; i++) {
 		debugf0("%s()  unreg dimm-%d\n", __func__, i);
 		kobject_put(&mci->dimms[i].kobj);
 	}
-	for (i = 0; i < mci->nr_csrows; i++) {
+	for (i = 0; i < mci->num_csrows; i++) {
 		int n = 0;
 
 		csrow = &mci->csrows[i];
