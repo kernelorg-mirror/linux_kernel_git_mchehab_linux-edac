@@ -79,6 +79,25 @@ enum dev_type {
 #define DEV_FLAG_X64		BIT(DEV_X64)
 
 /**
+ * enum hw_event_mc_err_type - type of the detected error
+ *
+ * @HW_EVENT_ERR_CORRECTED:	Corrected Error - Indicates that an ECC
+ *				corrected error was detected
+ * @HW_EVENT_ERR_UNCORRECTED:	Uncorrected Error - Indicates an error that
+ *				can't be corrected by ECC, but it is not
+ *				factal (maybe it is on an unused memory area,
+ *				or the memory controller could recover from
+ *				it for example, by re-trying the operation).
+ * @HW_EVENT_ERR_FATAL:		Fatal Error - Uncorrected error that could not
+ *				be recovered.
+ */
+enum hw_event_mc_err_type {
+	HW_EVENT_ERR_CORRECTED,
+	HW_EVENT_ERR_UNCORRECTED,
+	HW_EVENT_ERR_FATAL,
+};
+
+/**
  * enum mem_type - memory types. For a more detailed reference, please see
  *			http://en.wikipedia.org/wiki/DRAM
  *
@@ -342,12 +361,75 @@ enum scrub_type {
  * PS - I enjoyed writing all that about as much as you enjoyed reading it.
  */
 
-/* FIXME: add a per-dimm ce error count */
+/**
+ * enum edac_mc_layer - memory controller hierarchy layer
+ *
+ * @EDAC_MC_LAYER_BRANCH:	memory layer is named "branch"
+ * @EDAC_MC_LAYER_CHANNEL:	memory layer is named "channel"
+ * @EDAC_MC_LAYER_SLOT:		memory layer is named "slot"
+ * @EDAC_MC_LAYER_CHIP_SELECT:	memory layer is named "chip select"
+ *
+ * This enum is used by the drivers to tell edac_mc_sysfs what name should
+ * be used when describing a memory stick location.
+ */
+enum edac_mc_layer_type {
+	EDAC_MC_LAYER_BRANCH,
+	EDAC_MC_LAYER_CHANNEL,
+	EDAC_MC_LAYER_SLOT,
+	EDAC_MC_LAYER_CHIP_SELECT,
+};
+
+/**
+ * struct edac_mc_layer - describes the memory controller hierarchy
+ * @layer:		layer type
+ * @size:maximum size of the layer
+ * @is_csrow:		This layer is part of the "csrow" when old API
+ *			compatibility mode is enabled. Otherwise, it is
+ *			a channel
+ */
+struct edac_mc_layer {
+	enum edac_mc_layer_type	type;
+	unsigned		size;
+	bool			is_csrow;
+};
+
+/*
+ * Maximum number of layers used by the memory controller to uniquelly
+ * identify a single memory stick.
+ * NOTE: incrementing it would require changes at edac_mc_handle_error()
+ * and at the routines at edac_mc_sysfs that create layers
+ */
+#define EDAC_MAX_LAYERS		3
+
+/*
+ * A loop could be used here to make it more generic, but, as we only have
+ * 3 layers, this is a little faster. By design, layers can never be 0 or
+ * more than 3. If that ever happens, a NULL is returned, causing an OOPS
+ * during the memory allocation routine, with would point to the developer
+ * that he's doing something wrong.
+ */
+#define GET_POS(layers, var, nlayers, lay0, lay1, lay2) ({		\
+	typeof(var) __p;						\
+	if ((nlayers) == 1)						\
+		__p = &var[lay0];					\
+	else if ((nlayers) == 2)					\
+		__p = &var[(lay1) + ((layers[1]).size * (lay0))];	\
+	else if ((nlayers) == 3)					\
+		__p = &var[(lay2) + ((layers[2]).size * ((lay1) +	\
+			    ((layers[1]).size * (lay0))))];		\
+	else								\
+		__p = NULL;						\
+	__p;								\
+})
+
+
+/* FIXME: add the proper per-location error counts */
 struct dimm_info {
 	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
-	unsigned memory_controller;
-	unsigned csrow;
-	unsigned csrow_channel;
+
+	/* Memory location data */
+	unsigned location[EDAC_MAX_LAYERS];
+
 	struct kobject kobj;		/* sysfs kobject for this csrow */
 	struct mem_ctl_info *mci;	/* the parent */
 
@@ -356,9 +438,9 @@ struct dimm_info {
 	enum mem_type mtype;	/* memory dimm type */
 	enum edac_type edac_mode;	/* EDAC mode for this dimm */
 
-	u32 nr_pages;			/* number of pages in csrow */
+	u32 nr_pages;			/* number of pages on this dimm */
 
-	u32 ce_count;		/* Correctable Errors for this dimm */
+	unsigned csrow, cschannel;	/* Points to the old API data */
 };
 
 /**
@@ -378,9 +460,10 @@ struct dimm_info {
  */
 struct rank_info {
 	int chan_idx;
-	u32 ce_count;
 	struct csrow_info *csrow;
 	struct dimm_info *dimm;
+
+	u32 ce_count;		/* Correctable Errors for this csrow */
 };
 
 struct csrow_info {
@@ -432,6 +515,11 @@ struct mcidev_sysfs_attribute {
         ssize_t (*store)(struct mem_ctl_info *, const char *,size_t);
 };
 
+struct edac_hierarchy {
+	char		*name;
+	unsigned	nr;
+};
+
 /* MEMORY controller information structure
  */
 struct mem_ctl_info {
@@ -476,13 +564,16 @@ struct mem_ctl_info {
 	unsigned long (*ctl_page_to_phys) (struct mem_ctl_info * mci,
 					   unsigned long page);
 	int mc_idx;
-	int nr_csrows;
 	struct csrow_info *csrows;
+	unsigned num_csrows, num_cschannel;
 
+	/* Memory Controller hierarchy */
+	unsigned n_layers;
+	struct edac_mc_layer *layers;
 	/*
 	 * DIMM info. Will eventually remove the entire csrows_info some day
 	 */
-	unsigned nr_dimms;
+	unsigned tot_dimms;
 	struct dimm_info *dimms;
 
 	/*
@@ -497,11 +588,12 @@ struct mem_ctl_info {
 	const char *dev_name;
 	char proc_name[MC_PROC_NAME_MAX_LEN + 1];
 	void *pvt_info;
-	u32 ue_noinfo_count;	/* Uncorrectable Errors w/o info */
-	u32 ce_noinfo_count;	/* Correctable Errors w/o info */
-	u32 ue_count;		/* Total Uncorrectable Errors for this MC */
-	u32 ce_count;		/* Total Correctable Errors for this MC */
 	unsigned long start_time;	/* mci load start time (in jiffies) */
+
+	/* drivers shouldn't access this struct directly */
+	unsigned ce_noinfo_count, ue_noinfo_count;
+	unsigned ce_mc, ue_mc;
+	u32 *ce_per_layer[EDAC_MAX_LAYERS], *ue_per_layer[EDAC_MAX_LAYERS];
 
 	struct completion complete;
 
@@ -515,7 +607,7 @@ struct mem_ctl_info {
 	 * by the low level driver.
 	 *
 	 * Set by the low level driver to provide attributes at the
-	 * controller level, same level as 'ue_count' and 'ce_count' above.
+	 * controller level.
 	 * An array of structures, NULL terminated
 	 *
 	 * If attributes are desired, then set to array of attributes
