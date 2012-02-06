@@ -410,14 +410,6 @@ static int i5100_csrow_to_chan(const struct mem_ctl_info *mci, int csrow)
 	return csrow / priv->ranksperchan;
 }
 
-static unsigned i5100_rank_to_csrow(const struct mem_ctl_info *mci,
-				    int chan, int rank)
-{
-	const struct i5100_priv *priv = mci->pvt_info;
-
-	return chan * priv->ranksperchan + rank;
-}
-
 static void i5100_handle_ce(struct mem_ctl_info *mci,
 			    int chan,
 			    unsigned bank,
@@ -427,21 +419,18 @@ static void i5100_handle_ce(struct mem_ctl_info *mci,
 			    unsigned ras,
 			    const char *msg)
 {
-	const int csrow = i5100_rank_to_csrow(mci, chan, rank);
-	char *label = NULL;
+	char detail[80];
 
-	if (mci->csrows[csrow].channels[0].dimm)
-		label = mci->csrows[csrow].channels[0].dimm->label;
+	/* Form out message */
+	snprintf(detail, sizeof(detail),
+		 "bank %u, cas %u, ras %u\n",
+		 bank, cas, ras);
 
-	printk(KERN_ERR
-		"CE chan %d, bank %u, rank %u, syndrome 0x%lx, "
-		"cas %u, ras %u, csrow %u, label \"%s\": %s\n",
-		chan, bank, rank, syndrome, cas, ras,
-		csrow, label, msg);
-
-	mci->ce_count++;
-	mci->csrows[csrow].ce_count++;
-	mci->csrows[csrow].channels[0].ce_count++;
+	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+			     HW_EVENT_SCOPE_MC_DIMM, mci,
+			     0, 0, syndrome,
+			     0, chan, rank, -1, -1,
+			     msg, detail);
 }
 
 static void i5100_handle_ue(struct mem_ctl_info *mci,
@@ -453,20 +442,18 @@ static void i5100_handle_ue(struct mem_ctl_info *mci,
 			    unsigned ras,
 			    const char *msg)
 {
-	const int csrow = i5100_rank_to_csrow(mci, chan, rank);
-	char *label = NULL;
+	char detail[80];
 
-	if (mci->csrows[csrow].channels[0].dimm)
-		label = mci->csrows[csrow].channels[0].dimm->label;
+	/* Form out message */
+	snprintf(detail, sizeof(detail),
+		 "bank %u, cas %u, ras %u\n",
+		 bank, cas, ras);
 
-	printk(KERN_ERR
-		"UE chan %d, bank %u, rank %u, syndrome 0x%lx, "
-		"cas %u, ras %u, csrow %u, label \"%s\": %s\n",
-		chan, bank, rank, syndrome, cas, ras,
-		csrow, label, msg);
-
-	mci->ue_count++;
-	mci->csrows[csrow].ue_count++;
+	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+			     HW_EVENT_SCOPE_MC_DIMM, mci,
+			     0, 0, syndrome,
+			     0, chan, rank, -1, -1,
+			     msg, detail);
 }
 
 static void i5100_read_log(struct mem_ctl_info *mci, int chan,
@@ -849,19 +836,13 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 	unsigned long total_pages = 0UL;
 	struct i5100_priv *priv = mci->pvt_info;
 
-	for (i = 0; i < mci->nr_dimms; i++) {
+	for (i = 0; i < mci->tot_dimms; i++) {
 		const unsigned long npages = i5100_npages(mci, i);
 		const unsigned chan = i5100_csrow_to_chan(mci, i);
 		const unsigned rank = i5100_csrow_to_rank(mci, i);
 		struct dimm_info *dimm = &mci->dimms[i];
 
 		dimm->nr_pages = npages;
-
-		dimm->mc_branch = -1;
-		dimm->mc_channel = chan;
-		dimm->mc_dimm_number = rank;
-		dimm->csrow = -1;
-		dimm->csrow_channel = -1;
 
 		if (npages) {
 			total_pages += npages;
@@ -943,7 +924,9 @@ static int __devinit i5100_init_one(struct pci_dev *pdev,
 		goto bail_ch1;
 	}
 
-	mci = edac_mc_alloc(sizeof(*priv), ranksperch * 2, 1, 0);
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    1, 2, ranksperch,
+			    ranksperch * 2, 1, sizeof(*priv));
 	if (!mci) {
 		ret = -ENOMEM;
 		goto bail_disable_ch1;

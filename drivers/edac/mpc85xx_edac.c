@@ -812,7 +812,7 @@ static void mpc85xx_mc_check(struct mem_ctl_info *mci)
 	err_addr = in_be32(pdata->mc_vbase + MPC85XX_MC_CAPTURE_ADDRESS);
 	pfn = err_addr >> PAGE_SHIFT;
 
-	for (row_index = 0; row_index < mci->nr_csrows; row_index++) {
+	for (row_index = 0; row_index < mci->num_csrows; row_index++) {
 		csrow = &mci->csrows[row_index];
 		if ((pfn >= csrow->first_page) && (pfn <= csrow->last_page))
 			break;
@@ -850,16 +850,22 @@ static void mpc85xx_mc_check(struct mem_ctl_info *mci)
 	mpc85xx_mc_printk(mci, KERN_ERR, "PFN: %#8.8x\n", pfn);
 
 	/* we are out of range */
-	if (row_index == mci->nr_csrows)
+	if (row_index == mci->num_csrows)
 		mpc85xx_mc_printk(mci, KERN_ERR, "PFN out of range!\n");
 
 	if (err_detect & DDR_EDE_SBE)
-		edac_mc_handle_ce(mci, pfn, err_addr & ~PAGE_MASK,
-				  syndrome, row_index, 0, mci->ctl_name);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+				     pfn, err_addr & ~PAGE_MASK, syndrome,
+				     -1, -1, -1, row_index, 0,
+				     mci->ctl_name, "");
 
 	if (err_detect & DDR_EDE_MBE)
-		edac_mc_handle_ue(mci, pfn, err_addr & ~PAGE_MASK,
-				  row_index, mci->ctl_name);
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+				     pfn, err_addr & ~PAGE_MASK, syndrome,
+				     -1, -1, -1, row_index, 0,
+				     mci->ctl_name, "");
 
 	out_be32(pdata->mc_vbase + MPC85XX_MC_ERR_DETECT, err_detect);
 }
@@ -925,7 +931,7 @@ static void __devinit mpc85xx_init_csrows(struct mem_ctl_info *mci)
 		}
 	}
 
-	for (index = 0; index < mci->nr_csrows; index++) {
+	for (index = 0; index < mci->num_csrows; index++) {
 		u32 start;
 		u32 end;
 
@@ -969,7 +975,8 @@ static int __devinit mpc85xx_mc_err_probe(struct platform_device *op)
 	if (!devres_open_group(&op->dev, mpc85xx_mc_err_probe, GFP_KERNEL))
 		return -ENOMEM;
 
-	mci = edac_mc_alloc(sizeof(*pdata), 4, 1, edac_mc_idx);
+	mci = edac_mc_alloc(edac_mc_idx, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    0, 0, 4, 4, 1, sizeof(*pdata));
 	if (!mci) {
 		devres_release_group(&op->dev, mpc85xx_mc_err_probe);
 		return -ENOMEM;

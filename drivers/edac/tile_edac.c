@@ -71,7 +71,11 @@ static void tile_edac_check(struct mem_ctl_info *mci)
 	if (mem_error.sbe_count != priv->ce_count) {
 		dev_dbg(mci->dev, "ECC CE err on node %d\n", priv->node);
 		priv->ce_count = mem_error.sbe_count;
-		edac_mc_handle_ce(mci, 0, 0, 0, 0, 0, mci->ctl_name);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+				     0, 0, 0,
+				     -1, -1, -1, 0, 0,
+				     mci->ctl_name, "");
 	}
 }
 
@@ -131,8 +135,10 @@ static int __devinit tile_edac_mc_probe(struct platform_device *pdev)
 		return -EINVAL;
 
 	/* A TILE MC has a single channel and one chip-select row. */
-	mci = edac_mc_alloc(sizeof(struct tile_edac_priv),
-		TILE_EDAC_NR_CSROWS, TILE_EDAC_NR_CHANS, pdev->id);
+	mci = edac_mc_alloc(pdev->id, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    0, 0, TILE_EDAC_NR_CSROWS,
+			    TILE_EDAC_NR_CSROWS, TILE_EDAC_NR_CHANS,
+			    sizeof(struct tile_edac_priv));
 	if (mci == NULL)
 		return -ENOMEM;
 	priv = mci->pvt_info;

@@ -179,10 +179,13 @@ static int r82600_process_error_info(struct mem_ctl_info *mci,
 		error_found = 1;
 
 		if (handle_errors)
-			edac_mc_handle_ce(mci, page, 0,	/* not avail */
-					syndrome,
-					edac_mc_find_csrow_by_page(mci, page),
-					0, mci->ctl_name);
+			edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+					     HW_EVENT_SCOPE_MC_CSROW_CHANNEL,
+					     mci, page, 0, syndrome,
+					     -1, -1, -1,
+					     edac_mc_find_csrow_by_page(mci, page),
+					     0,
+					     mci->ctl_name, "");
 	}
 
 	if (info->eapr & BIT(1)) {	/* UE? */
@@ -190,9 +193,13 @@ static int r82600_process_error_info(struct mem_ctl_info *mci,
 
 		if (handle_errors)
 			/* 82600 doesn't give enough info */
-			edac_mc_handle_ue(mci, page, 0,
-					edac_mc_find_csrow_by_page(mci, page),
-					mci->ctl_name);
+			edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+					     HW_EVENT_SCOPE_MC_CSROW_CHANNEL,
+					     mci, page, 0, 0,
+					     -1, -1, -1,
+					     edac_mc_find_csrow_by_page(mci, page),
+					     0,
+					     mci->ctl_name, "");
 	}
 
 	return error_found;
@@ -226,7 +233,7 @@ static void r82600_init_csrows(struct mem_ctl_info *mci, struct pci_dev *pdev,
 	reg_sdram = dramcr & BIT(4);
 	row_high_limit_last = 0;
 
-	for (index = 0; index < mci->nr_csrows; index++) {
+	for (index = 0; index < mci->num_csrows; index++) {
 		csrow = &mci->csrows[index];
 		dimm = csrow->channels[0].dimm;
 
@@ -281,7 +288,10 @@ static int r82600_probe1(struct pci_dev *pdev, int dev_idx)
 	debugf2("%s(): sdram refresh rate = %#0x\n", __func__,
 		sdram_refresh_rate);
 	debugf2("%s(): DRAMC register = %#0x\n", __func__, dramcr);
-	mci = edac_mc_alloc(0, R82600_NR_CSROWS, R82600_NR_CHANS, 0);
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    -1, -1, R82600_NR_DIMMS,
+			    R82600_NR_CSROWS, R82600_NR_CHANS,
+			    0);
 
 	if (mci == NULL)
 		return -ENOMEM;

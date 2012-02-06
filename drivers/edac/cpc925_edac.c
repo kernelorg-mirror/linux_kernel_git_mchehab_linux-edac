@@ -336,7 +336,7 @@ static void cpc925_init_csrows(struct mem_ctl_info *mci)
 
 	get_total_mem(pdata);
 
-	for (index = 0; index < mci->nr_csrows; index++) {
+	for (index = 0; index < mci->num_csrows; index++) {
 		mbmr = __raw_readl(pdata->vbase + REG_MBMR_OFFSET +
 				   0x20 * index);
 		mbbar = __raw_readl(pdata->vbase + REG_MBBAR_OFFSET +
@@ -555,13 +555,20 @@ static void cpc925_mc_check(struct mem_ctl_info *mci)
 	if (apiexcp & CECC_EXCP_DETECTED) {
 		cpc925_mc_printk(mci, KERN_INFO, "DRAM CECC Fault\n");
 		channel = cpc925_mc_find_channel(mci, syndrome);
-		edac_mc_handle_ce(mci, pfn, offset, syndrome,
-				  csrow, channel, mci->ctl_name);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+				     pfn, offset, syndrome,
+				     -1, -1, -1, csrow, channel,
+				     mci->ctl_name, "");
 	}
 
 	if (apiexcp & UECC_EXCP_DETECTED) {
 		cpc925_mc_printk(mci, KERN_INFO, "DRAM UECC Fault\n");
-		edac_mc_handle_ue(mci, pfn, offset, csrow, mci->ctl_name);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW, mci,
+				     pfn, offset, 0,
+				     -1, -1, -1, csrow, -1,
+				     mci->ctl_name, "");
 	}
 
 	cpc925_mc_printk(mci, KERN_INFO, "Dump registers:\n");
@@ -969,8 +976,10 @@ static int __devinit cpc925_probe(struct platform_device *pdev)
 	}
 
 	nr_channels = cpc925_mc_get_channels(vbase) + 1;
-	mci = edac_mc_alloc(sizeof(struct cpc925_mc_pdata),
-			CPC925_NR_CSROWS, nr_channels, edac_mc_idx);
+	mci = edac_mc_alloc(edac_mc_idx, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    0, 0, CPC925_NR_CSROWS * nr_channels,
+			    CPC925_NR_CSROWS, nr_channels,
+			    sizeof(struct cpc925_mc_pdata));
 	if (!mci) {
 		cpc925_printk(KERN_ERR, "No memory for mem_ctl_info\n");
 		res = -ENOMEM;

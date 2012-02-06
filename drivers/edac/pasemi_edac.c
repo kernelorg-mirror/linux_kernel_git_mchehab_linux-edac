@@ -110,15 +110,20 @@ static void pasemi_edac_process_error_info(struct mem_ctl_info *mci, u32 errsta)
 	/* uncorrectable/multi-bit errors */
 	if (errsta & (MCDEBUG_ERRSTA_MBE_STATUS |
 		      MCDEBUG_ERRSTA_RFL_STATUS)) {
-		edac_mc_handle_ue(mci, mci->csrows[cs].first_page, 0,
-				  cs, mci->ctl_name);
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+				     mci->csrows[cs].first_page, 0, 0,
+				     -1, -1, -1, cs, 0,
+				     mci->ctl_name, "");
 	}
 
 	/* correctable/single-bit errors */
-	if (errsta & MCDEBUG_ERRSTA_SBE_STATUS) {
-		edac_mc_handle_ce(mci, mci->csrows[cs].first_page, 0,
-				  0, cs, 0, mci->ctl_name);
-	}
+	if (errsta & MCDEBUG_ERRSTA_SBE_STATUS)
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+				     mci->csrows[cs].first_page, 0, 0,
+				     -1, -1, -1, cs, 0,
+				     mci->ctl_name, "");
 }
 
 static void pasemi_edac_check(struct mem_ctl_info *mci)
@@ -139,7 +144,7 @@ static int pasemi_edac_init_csrows(struct mem_ctl_info *mci,
 	u32 rankcfg;
 	int index;
 
-	for (index = 0; index < mci->nr_csrows; index++) {
+	for (index = 0; index < mci->num_csrows; index++) {
 		csrow = &mci->csrows[index];
 		dimm = csrow->channels[0].dimm;
 
@@ -207,8 +212,9 @@ static int __devinit pasemi_edac_probe(struct pci_dev *pdev,
 		MCDEBUG_ERRCTL1_RFL_LOG_EN;
 	pci_write_config_dword(pdev, MCDEBUG_ERRCTL1, errctl1);
 
-	mci = edac_mc_alloc(0, PASEMI_EDAC_NR_CSROWS, PASEMI_EDAC_NR_CHANS,
-				system_mmc_id++);
+	mci = edac_mc_alloc(system_mmc_id++, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    0, 0, PASEMI_EDAC_NR_CSROWS,
+			    PASEMI_EDAC_NR_CSROWS, PASEMI_EDAC_NR_CHANS, 0);
 
 	if (mci == NULL)
 		return -ENOMEM;

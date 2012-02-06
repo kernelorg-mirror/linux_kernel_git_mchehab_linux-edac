@@ -598,7 +598,7 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 	struct csrow_info *csr;
 	struct pci_dev *pdev;
 	int i, j;
-	int csrow = 0;
+	int csrow = 0, cschannel = 0;
 	enum edac_type mode;
 	enum mem_type mtype;
 
@@ -693,12 +693,6 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 			u32 banks, ranks, rows, cols;
 			u32 size, npages;
 
-			dimm->mc_branch = -1;
-			dimm->mc_channel = i;
-			dimm->mc_dimm_number = j;
-			dimm->csrow = -1;
-			dimm->csrow_channel = -1;
-
 			if (!DIMM_PRESENT(dimm_dod[j]))
 				continue;
 
@@ -710,8 +704,6 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 			/* DDR3 has 8 I/O banks */
 			size = (rows * cols * banks * ranks) >> (20 - 3);
 
-			pvt->channel[i].dimms++;
-
 			debugf0("\tdimm %d %d Mb offset: %x, "
 				"bank: %d, rank: %d, row: %#x, col: %#x\n",
 				j, size,
@@ -720,10 +712,15 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 
 			npages = MiB_TO_PAGES(size);
 
-			csr = &mci->csrows[csrow];
-			csr->channels[0].dimm = dimm;
-
 			pvt->csrow_map[i][j] = csrow;
+
+			csr = &mci->csrows[csrow];
+			csr->channels[cschannel].dimm = dimm;
+			cschannel++;
+			if (cschannel >= MAX_DIMMS) {
+				cschannel = 0;
+				csrow++;
+			}
 
 			dimm->nr_pages = npages;
 
@@ -764,6 +761,17 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 				(value[j] >> 27) & 0x1,
 				(value[j] >> 24) & 0x7,
 				(value[j] & ((1 << 24) - 1)));
+	}
+
+	/* Clears the unused data */
+	while (csrow < NUM_CHANS && cschannel < MAX_DIMMS) {
+		csr = &mci->csrows[csrow];
+		csr->channels[cschannel].dimm = NULL;
+		cschannel++;
+		if (cschannel >= MAX_DIMMS) {
+			cschannel = 0;
+			csrow++;
+		}
 	}
 
 	return 0;
@@ -1568,17 +1576,14 @@ static void i7core_rdimm_update_csrow(struct mem_ctl_info *mci,
 				      const int dimm,
 				      const int add)
 {
-	char *msg;
-	struct i7core_pvt *pvt = mci->pvt_info;
-	int row = pvt->csrow_map[chan][dimm], i;
+	int i;
 
 	for (i = 0; i < add; i++) {
-		msg = kasprintf(GFP_KERNEL, "Corrected error "
-				"(Socket=%d channel=%d dimm=%d)",
-				pvt->i7core_dev->socket, chan, dimm);
-
-		edac_mc_handle_fbd_ce(mci, row, 0, msg);
-		kfree (msg);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				     HW_EVENT_SCOPE_MC_DIMM, mci,
+				     0, 0, 0,
+				     0, chan, dimm, -1, -1,
+				     "error", "");
 	}
 }
 
@@ -1744,7 +1749,10 @@ static void i7core_mce_output_error(struct mem_ctl_info *mci,
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	char *type, *optype, *err, *msg;
+	enum hw_event_mc_err_type tp_event;
 	unsigned long error = m->status & 0x1ff0000l;
+	bool uncorrected_error = m->mcgstatus & 1ll << 61;
+	bool ripv = m->mcgstatus & 1;
 	u32 optypenum = (m->status >> 4) & 0x07;
 	u32 core_err_cnt = (m->status >> 38) & 0x7fff;
 	u32 dimm = (m->misc >> 16) & 0x3;
@@ -1753,10 +1761,18 @@ static void i7core_mce_output_error(struct mem_ctl_info *mci,
 	u32 errnum = find_first_bit(&error, 32);
 	int csrow;
 
-	if (m->mcgstatus & 1)
-		type = "FATAL";
-	else
-		type = "NON_FATAL";
+	if (uncorrected_error) {
+		if (ripv) {
+			type = "FATAL";
+			tp_event = HW_EVENT_ERR_FATAL;
+		} else {
+			type = "NON_FATAL";
+			tp_event = HW_EVENT_ERR_UNCORRECTED;
+		}
+	} else {
+		type = "CORRECTED";
+		tp_event = HW_EVENT_ERR_CORRECTED;
+	}
 
 	switch (optypenum) {
 	case 0:
@@ -1811,25 +1827,26 @@ static void i7core_mce_output_error(struct mem_ctl_info *mci,
 		err = "unknown";
 	}
 
-	/* FIXME: should convert addr into bank and rank information */
 	msg = kasprintf(GFP_ATOMIC,
-		"%s (addr = 0x%08llx, cpu=%d, Dimm=%d, Channel=%d, "
-		"syndrome=0x%08x, count=%d, Err=%08llx:%08llx (%s: %s))\n",
-		type, (long long) m->addr, m->cpu, dimm, channel,
-		syndrome, core_err_cnt, (long long)m->status,
-		(long long)m->misc, optype, err);
-
-	debugf0("%s", msg);
+		"addr=0x%08llx cpu=%d count=%d Err=%08llx:%08llx (%s: %s))\n",
+		(long long) m->addr, m->cpu, core_err_cnt,
+		(long long)m->status, (long long)m->misc, optype, err);
 
 	csrow = pvt->csrow_map[channel][dimm];
 
-	/* Call the helper to output message */
-	if (m->mcgstatus & 1)
-		edac_mc_handle_fbd_ue(mci, csrow, 0,
-				0 /* FIXME: should be channel here */, msg);
-	else if (!pvt->is_registered)
-		edac_mc_handle_fbd_ce(mci, csrow,
-				0 /* FIXME: should be channel here */, msg);
+	/*
+	 * Call the helper to output message
+	 * FIXME: what to do if core_err_cnt > 1? Currently, it generates
+	 * only one event
+	 */
+	if (uncorrected_error || !pvt->is_registered)
+		edac_mc_handle_error(tp_event,
+				     HW_EVENT_SCOPE_MC_DIMM, mci,
+				     m->addr >> PAGE_SHIFT,
+				     m->addr & ~PAGE_MASK,
+				     syndrome,
+				     0, channel, dimm, -1, -1,
+				     err, msg);
 
 	kfree(msg);
 }
@@ -2256,7 +2273,10 @@ static int i7core_register_mci(struct i7core_dev *i7core_dev)
 		return rc;
 
 	/* allocate a new MC control structure */
-	mci = edac_mc_alloc(sizeof(*pvt), csrows, channels, i7core_dev->socket);
+
+	mci = edac_mc_alloc(EDAC_ALLOC_FILL_PRIV, i7core_dev->socket,
+			    1, NUM_CHANS, MAX_DIMMS,
+			    MAX_DIMMS, NUM_CHANS, sizeof(*pvt));
 	if (unlikely(!mci))
 		return -ENOMEM;
 

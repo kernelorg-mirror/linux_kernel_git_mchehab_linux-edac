@@ -215,19 +215,29 @@ static void x38_process_error_info(struct mem_ctl_info *mci,
 		return;
 
 	if ((info->errsts ^ info->errsts2) & X38_ERRSTS_BITS) {
-		edac_mc_handle_ce_no_info(mci, "UE overwrote CE");
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+				     HW_EVENT_SCOPE_MC, mci, 0, 0, 0,
+				     -1, -1, -1, -1, -1,
+				     "UE overwrote CE", "");
 		info->errsts = info->errsts2;
 	}
 
 	for (channel = 0; channel < x38_channel_num; channel++) {
 		log = info->eccerrlog[channel];
 		if (log & X38_ECCERRLOG_UE) {
-			edac_mc_handle_ue(mci, 0, 0,
-				eccerrlog_row(channel, log), "x38 UE");
+			edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+					     HW_EVENT_SCOPE_MC_CSROW, mci,
+					     0, 0, 0,
+					     -1, -1, -1,
+					     eccerrlog_row(channel, log), -1,
+					     "x38 UE", "");
 		} else if (log & X38_ECCERRLOG_CE) {
-			edac_mc_handle_ce(mci, 0, 0,
-				eccerrlog_syndrome(log),
-				eccerrlog_row(channel, log), 0, "x38 CE");
+			edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+					     HW_EVENT_SCOPE_MC_CSROW, mci,
+					     0, 0, eccerrlog_syndrome(log),
+					     -1, -1, -1,
+					     eccerrlog_row(channel, log), -1,
+					     "x38 CE", "");
 		}
 	}
 }
@@ -334,7 +344,10 @@ static int x38_probe1(struct pci_dev *pdev, int dev_idx)
 	how_many_channel(pdev);
 
 	/* FIXME: unconventional pvt_info usage */
-	mci = edac_mc_alloc(0, X38_RANKS, x38_channel_num, 0);
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    -1, -1, X38_RANKS,
+			    X38_RANKS, x38_channel_num,
+			    0);
 	if (!mci)
 		return -ENOMEM;
 
@@ -362,7 +375,7 @@ static int x38_probe1(struct pci_dev *pdev, int dev_idx)
 	 * cumulative; the last one will contain the total memory
 	 * contained in all ranks.
 	 */
-	for (i = 0; i < mci->nr_csrows; i++) {
+	for (i = 0; i < mci->num_csrows; i++) {
 		unsigned long nr_pages;
 		struct csrow_info *csrow = &mci->csrows[i];
 

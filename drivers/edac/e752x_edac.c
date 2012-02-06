@@ -6,6 +6,9 @@
  *
  * See "enum e752x_chips" below for supported chipsets
  *
+ * Datasheet:
+ *	http://www.intel.in/content/www/in/en/chipsets/e7525-memory-controller-hub-datasheet.html
+ *
  * Written by Tom Zimmerman
  *
  * Contributors:
@@ -350,8 +353,11 @@ static void do_process_ce(struct mem_ctl_info *mci, u16 error_one,
 	channel = !(error_one & 1);
 
 	/* e752x mc reads 34:6 of the DRAM linear address */
-	edac_mc_handle_ce(mci, page, offset_in_page(sec1_add << 4),
-			sec1_syndrome, row, channel, "e752x CE");
+	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+			     HW_EVENT_SCOPE_MC, mci,
+			     page, offset_in_page(sec1_add << 4), sec1_syndrome,
+			     -1, -1, -1, row, channel,
+			     "e752x CE", "");
 }
 
 static inline void process_ce(struct mem_ctl_info *mci, u16 error_one,
@@ -385,9 +391,13 @@ static void do_process_ue(struct mem_ctl_info *mci, u16 error_one,
 			edac_mc_find_csrow_by_page(mci, block_page);
 
 		/* e752x mc reads 34:6 of the DRAM linear address */
-		edac_mc_handle_ue(mci, block_page,
-				offset_in_page(error_2b << 4),
-				row, "e752x UE from Read");
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+					HW_EVENT_SCOPE_MC_CSROW, mci,
+					block_page,
+					offset_in_page(error_2b << 4), 0,
+					-1, -1, -1, row, -1,
+					"e752x UE from Read", "");
+
 	}
 	if (error_one & 0x0404) {
 		error_2b = scrb_add;
@@ -401,9 +411,12 @@ static void do_process_ue(struct mem_ctl_info *mci, u16 error_one,
 			edac_mc_find_csrow_by_page(mci, block_page);
 
 		/* e752x mc reads 34:6 of the DRAM linear address */
-		edac_mc_handle_ue(mci, block_page,
-				offset_in_page(error_2b << 4),
-				row, "e752x UE from Scruber");
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+					HW_EVENT_SCOPE_MC_CSROW, mci,
+					block_page,
+					offset_in_page(error_2b << 4), 0,
+					-1, -1, -1, row, -1,
+					"e752x UE from Scruber", "");
 	}
 }
 
@@ -426,7 +439,10 @@ static inline void process_ue_no_info_wr(struct mem_ctl_info *mci,
 		return;
 
 	debugf3("%s()\n", __func__);
-	edac_mc_handle_ue_no_info(mci, "e752x UE log memory write");
+	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+			     HW_EVENT_SCOPE_MC, mci, 0, 0, 0,
+			     -1, -1, -1, -1, -1,
+			     "e752x UE log memory write", "");
 }
 
 static void do_process_ded_retry(struct mem_ctl_info *mci, u16 error,
@@ -1062,7 +1078,7 @@ static void e752x_init_csrows(struct mem_ctl_info *mci, struct pci_dev *pdev,
 	 * channel operation).  DRB regs are cumulative; therefore DRB7 will
 	 * contain the total memory contained in all eight rows.
 	 */
-	for (last_cumul_size = index = 0; index < mci->nr_csrows; index++) {
+	for (last_cumul_size = index = 0; index < mci->num_csrows; index++) {
 		/* mem_dev 0=x8, 1=x4 */
 		mem_dev = (dra >> (index * 4 + 2)) & 0x3;
 		csrow = &mci->csrows[remap_csrow_index(mci, index)];
@@ -1258,7 +1274,9 @@ static int e752x_probe1(struct pci_dev *pdev, int dev_idx)
 	/* Dual channel = 1, Single channel = 0 */
 	drc_chan = dual_channel_active(ddrcsr);
 
-	mci = edac_mc_alloc(sizeof(*pvt), E752X_NR_CSROWS, drc_chan + 1, 0);
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    0, 0, E752X_NR_CSROWS * (drc_chan + 1),
+			    E752X_NR_CSROWS, drc_chan + 1, sizeof(*pvt));
 
 	if (mci == NULL) {
 		return -ENOMEM;

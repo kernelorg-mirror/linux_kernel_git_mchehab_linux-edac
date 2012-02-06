@@ -54,38 +54,60 @@ DEFINE_EVENT(hw_event_class, hw_event_init,
  */
 TRACE_EVENT(mc_error,
 
-	TP_PROTO(unsigned int err_type,
-		 unsigned int mc_index,
-		 const char *label,
+	TP_PROTO(const unsigned int err_type,
+		 const unsigned int mc_index,
 		 const char *msg,
-		 const char *detail),
+		 const char *label,
+		 const int branch,
+		 const int channel,
+		 const int dimm,
+		 const int csrow,
+		 const int cschannel,
+		 const char *detail,
+		 const char *driver_detail),
 
-	TP_ARGS(err_type, mc_index, label, msg, detail),
+	TP_ARGS(err_type, mc_index, msg, label, branch, channel, dimm, csrow,
+		cschannel, detail, driver_detail),
 
 	TP_STRUCT__entry(
 		__field(	unsigned int,	err_type		)
 		__field(	unsigned int,	mc_index		)
-		__string(	label,		label			)
+		__field(	int,		branch			)
+		__field(	int,		channel			)
+		__field(	int,		dimm			)
+		__field(	int,		csrow			)
+		__field(	int,		cschannel		)
 		__string(	msg,		msg			)
+		__string(	label,		label			)
 		__string(	detail,		detail			)
+		__string(	driver_detail,	driver_detail		)
 	),
 
 	TP_fast_assign(
 		__entry->err_type		= err_type;
 		__entry->mc_index		= mc_index;
-		__assign_str(label, label);
+		__entry->branch			= branch;
+		__entry->channel		= channel;
+		__entry->dimm			= dimm;
+		__entry->csrow			= csrow;
+		__entry->cschannel		= cschannel;
 		__assign_str(msg, msg);
+		__assign_str(label, label);
 		__assign_str(detail, detail);
+		__assign_str(driver_detail, driver_detail);
 	),
 
-	TP_printk(HW_ERR "mce#%d: %s error %s on label \"%s\" %s\n",
+	TP_printk(HW_ERR "mce#%d: %s error %s on label \"%s\" (location %d.%d.%d.%d.%d %s %s)\n",
 		  __entry->mc_index,
 		  (__entry->err_type == HW_EVENT_ERR_CORRECTED) ? "Corrected" :
 			((__entry->err_type == HW_EVENT_ERR_FATAL) ?
 			"Fatal" : "Uncorrected"),
 		  __get_str(msg),
 		  __get_str(label),
-		  __get_str(detail))
+		  __entry->branch, __entry->channel, __entry->dimm,
+		  __entry->csrow, __entry->cschannel,
+		  __get_str(detail),
+		  __get_str(driver_detail))
 );
 
 TRACE_EVENT(mc_out_of_range,

@@ -156,19 +156,23 @@ static int i82443bxgx_edacmc_process_error_info(struct mem_ctl_info *mci,
 	if (info->eap & I82443BXGX_EAP_OFFSET_SBE) {
 		error_found = 1;
 		if (handle_errors)
-			edac_mc_handle_ce(mci, page, pageoffset,
-				/* 440BX/GX don't make syndrome information
-				 * available */
-				0, edac_mc_find_csrow_by_page(mci, page), 0,
-				mci->ctl_name);
+			edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+					     HW_EVENT_SCOPE_MC_CSROW_CHANNEL,
+					     mci, page, pageoffset, 0,
+					     -1, -1, -1,
+					     edac_mc_find_csrow_by_page(mci, page),
+					     0, mci->ctl_name, 0);
 	}
 
 	if (info->eap & I82443BXGX_EAP_OFFSET_MBE) {
 		error_found = 1;
 		if (handle_errors)
-			edac_mc_handle_ue(mci, page, pageoffset,
-					edac_mc_find_csrow_by_page(mci, page),
-					mci->ctl_name);
+			edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+					     HW_EVENT_SCOPE_MC_CSROW_CHANNEL,
+					     mci, page, pageoffset, 0,
+					     -1, -1, -1,
+					     edac_mc_find_csrow_by_page(mci, page),
+					     0, mci->ctl_name, 0);
 	}
 
 	return error_found;
@@ -196,7 +200,7 @@ static void i82443bxgx_init_csrows(struct mem_ctl_info *mci,
 
 	pci_read_config_byte(pdev, I82443BXGX_DRAMC, &dramc);
 	row_high_limit_last = 0;
-	for (index = 0; index < mci->nr_csrows; index++) {
+	for (index = 0; index < mci->num_csrows; index++) {
 		csrow = &mci->csrows[index];
 		dimm = csrow->channels[0].dimm;
 
@@ -248,7 +252,9 @@ static int i82443bxgx_edacmc_probe1(struct pci_dev *pdev, int dev_idx)
 	if (pci_read_config_dword(pdev, I82443BXGX_NBXCFG, &nbxcfg))
 		return -EIO;
 
-	mci = edac_mc_alloc(0, I82443BXGX_NR_CSROWS, I82443BXGX_NR_CHANS, 0);
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    0, 0, I82443BXGX_NR_CSROWS,
+			    I82443BXGX_NR_CSROWS, I82443BXGX_NR_CHANS, 0);
 
 	if (mci == NULL)
 		return -ENOMEM;

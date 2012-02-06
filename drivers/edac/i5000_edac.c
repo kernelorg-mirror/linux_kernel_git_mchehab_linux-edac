@@ -533,13 +533,15 @@ static void i5000_process_fatal_error_info(struct mem_ctl_info *mci,
 
 	/* Form out message */
 	snprintf(msg, sizeof(msg),
-		 "(Branch=%d DRAM-Bank=%d RDWR=%s RAS=%d CAS=%d "
-		 "FATAL Err=0x%x (%s))",
-		 branch >> 1, bank, rdwr ? "Write" : "Read", ras, cas,
-		 allErrors, specific);
+		 "Bank=%d RAS=%d CAS=%d FATAL Err=0x%x (%s)",
+		 bank, ras, cas, allErrors, specific);
 
 	/* Call the helper to output message */
-	edac_mc_handle_fbd_ue(mci, rank, channel, channel + 1, msg);
+	edac_mc_handle_error(HW_EVENT_ERR_FATAL,
+			     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
+			     branch >> 1, -1, rank, -1, -1,
+			     rdwr ? "Write error" : "Read error",
+			     msg);
 }
 
 /*
@@ -633,13 +635,15 @@ static void i5000_process_nonfatal_error_info(struct mem_ctl_info *mci,
 
 		/* Form out message */
 		snprintf(msg, sizeof(msg),
-			 "(Branch=%d DRAM-Bank=%d RDWR=%s RAS=%d "
-			 "CAS=%d, UE Err=0x%x (%s))",
-			 branch >> 1, bank, rdwr ? "Write" : "Read", ras, cas,
-			 ue_errors, specific);
+			 "Rank=%d Bank=%d RAS=%d CAS=%d, UE Err=0x%x (%s)",
+			 rank, bank, ras, cas, ue_errors, specific);
 
 		/* Call the helper to output message */
-		edac_mc_handle_fbd_ue(mci, rank, channel, channel + 1, msg);
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
+				HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
+				channel >> 1, -1, rank, -1, -1,
+				rdwr ? "Write error" : "Read error",
+				msg);
 	}
 
 	/* Check correctable errors */
@@ -685,13 +689,17 @@ static void i5000_process_nonfatal_error_info(struct mem_ctl_info *mci,
 
 		/* Form out message */
 		snprintf(msg, sizeof(msg),
-			 "(Branch=%d DRAM-Bank=%d RDWR=%s RAS=%d "
+			 "Rank=%d Bank=%d RDWR=%s RAS=%d "
 			 "CAS=%d, CE Err=0x%x (%s))", branch >> 1, bank,
 			 rdwr ? "Write" : "Read", ras, cas, ce_errors,
 			 specific);
 
 		/* Call the helper to output message */
-		edac_mc_handle_fbd_ce(mci, rank, channel, msg);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				HW_EVENT_SCOPE_MC_CHANNEL, mci, 0, 0, 0,
+				channel >> 1, channel % 2, rank, -1, -1,
+				rdwr ? "Write error" : "Read error",
+				msg);
 	}
 
 	if (!misc_messages)
@@ -731,11 +739,13 @@ static void i5000_process_nonfatal_error_info(struct mem_ctl_info *mci,
 
 		/* Form out message */
 		snprintf(msg, sizeof(msg),
-			 "(Branch=%d Err=%#x (%s))", branch >> 1,
-			 misc_errors, specific);
+			 "Err=%#x (%s)", misc_errors, specific);
 
 		/* Call the helper to output message */
-		edac_mc_handle_fbd_ce(mci, 0, 0, msg);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
+				HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
+				branch >> 1, -1, -1, -1, -1,
+				"Misc error", msg);
 	}
 }
 
@@ -1251,6 +1261,10 @@ static int i5000_init_csrows(struct mem_ctl_info *mci)
 
 	empty = 1;		/* Assume NO memory */
 
+	/*
+	 * TODO: it would be better to not use csrow here, filling
+	 * directly the dimm_info structs, based on branch, channel, dim number
+	 */
 	for (csrow = 0; csrow < max_csrows; csrow++) {
 		p_csrow = &mci->csrows[csrow];
 
@@ -1378,7 +1392,9 @@ static int i5000_probe1(struct pci_dev *pdev, int dev_idx)
 		__func__, num_channels, num_dimms_per_channel, num_csrows);
 
 	/* allocate a new MC control structure */
-	mci = edac_mc_alloc(sizeof(*pvt), num_csrows, num_channels, 0);
+	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
+			    2, num_channels, num_dimms_per_channel,
+			    num_csrows, num_channels, sizeof(*pvt));
 
 	if (mci == NULL)
 		return -ENOMEM;

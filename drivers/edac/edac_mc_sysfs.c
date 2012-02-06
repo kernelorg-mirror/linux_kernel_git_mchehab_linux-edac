@@ -132,13 +132,17 @@ static const char *edac_caps[] = {
 static ssize_t csrow_ue_count_show(struct csrow_info *csrow, char *data,
 				int private)
 {
-	return sprintf(data, "%u\n", csrow->ue_count);
+	struct mem_ctl_info *mci = csrow->mci;
+
+	return sprintf(data, "%u\n", mci->err.ue_csrow[csrow->csrow_idx]);
 }
 
 static ssize_t csrow_ce_count_show(struct csrow_info *csrow, char *data,
 				int private)
 {
-	return sprintf(data, "%u\n", csrow->ce_count);
+	struct mem_ctl_info *mci = csrow->mci;
+
+	return sprintf(data, "%u\n", mci->err.ce_csrow[csrow->csrow_idx]);
 }
 
 static ssize_t csrow_size_show(struct csrow_info *csrow, char *data,
@@ -205,7 +209,10 @@ static ssize_t channel_dimm_label_store(struct csrow_info *csrow,
 static ssize_t channel_ce_count_show(struct csrow_info *csrow,
 				char *data, int channel)
 {
-	return sprintf(data, "%u\n", csrow->channels[channel].ce_count);
+	struct mem_ctl_info *mci = csrow->mci;
+	int index = csrow->csrow_idx * mci->num_cschannel + channel;
+
+	return sprintf(data, "%u\n", mci->err.ce_cschannel[index]);
 }
 
 /* csrow specific attribute structure */
@@ -479,14 +486,14 @@ static ssize_t dimmdev_location_show(struct dimm_info *dimm, char *data)
 	if (dimm->mc_channel >= 0)
 		p += sprintf(p, "channel %d ", dimm->mc_channel);
 
+	if (dimm->mc_dimm_number >= 0)
+		p += sprintf(p, "dimm %d ", dimm->mc_dimm_number);
+
 	if (dimm->csrow >= 0)
 		p += sprintf(p, "csrow %d ", dimm->csrow);
 
-	if (dimm->csrow_channel >= 0)
-		p += sprintf(p, "cs_channel %d ", dimm->csrow_channel);
-
-	if (dimm->mc_dimm_number >= 0)
-		p += sprintf(p, "dimm %d ", dimm->mc_dimm_number);
+	if (dimm->cschannel >= 0)
+		p += sprintf(p, "cs_channel %d ", dimm->cschannel);
 
 	return p - data;
 }
@@ -614,22 +621,27 @@ err_out:
 static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
 					const char *data, size_t count)
 {
-	int row, chan;
-
+	int num;
+	mci->err.ue_mc = 0;
+	mci->err.ce_mc = 0;
 	mci->ue_noinfo_count = 0;
 	mci->ce_noinfo_count = 0;
-	mci->ue_count = 0;
-	mci->ce_count = 0;
 
-	for (row = 0; row < mci->nr_csrows; row++) {
-		struct csrow_info *ri = &mci->csrows[row];
-
-		ri->ue_count = 0;
-		ri->ce_count = 0;
-
-		for (chan = 0; chan < ri->nr_channels; chan++)
-			ri->channels[chan].ce_count = 0;
-	}
+	num = mci->num_branch;
+	memset(mci->err.ue_branch, 0, num);
+	memset(mci->err.ce_branch, 0, num);
+	num *= mci->num_channel;
+	memset(mci->err.ue_channel, 0, num);
+	memset(mci->err.ce_channel, 0, num);
+	num *= mci->num_dimm;
+	memset(mci->err.ue_dimm, 0, num);
+	memset(mci->err.ce_dimm, 0, num);
+	num *= mci->num_csrows;
+	memset(mci->err.ue_csrow, 0, num);
+	memset(mci->err.ce_csrow, 0, num);
+	num *= mci->num_cschannel;
+	memset(mci->err.ue_cschannel, 0, num);
+	memset(mci->err.ce_cschannel, 0, num);
 
 	mci->start_time = jiffies;
 	return count;
@@ -688,12 +700,12 @@ static ssize_t mci_sdram_scrub_rate_show(struct mem_ctl_info *mci, char *data)
 /* default attribute files for the MCI object */
 static ssize_t mci_ue_count_show(struct mem_ctl_info *mci, char *data)
 {
-	return sprintf(data, "%d\n", mci->ue_count);
+	return sprintf(data, "%d\n", mci->err.ue_mc);
 }
 
 static ssize_t mci_ce_count_show(struct mem_ctl_info *mci, char *data)
 {
-	return sprintf(data, "%d\n", mci->ce_count);
+	return sprintf(data, "%d\n", mci->err.ce_mc);
 }
 
 static ssize_t mci_ce_noinfo_show(struct mem_ctl_info *mci, char *data)
@@ -720,7 +732,7 @@ static ssize_t mci_size_mb_show(struct mem_ctl_info *mci, char *data)
 {
 	int total_pages, csrow_idx, j;
 
-	for (total_pages = csrow_idx = 0; csrow_idx < mci->nr_csrows;
+	for (total_pages = csrow_idx = 0; csrow_idx < mci->num_csrows;
 	     csrow_idx++) {
 		struct csrow_info *csrow = &mci->csrows[csrow_idx];
 
@@ -1133,7 +1145,7 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	/* Make directories for each CSROW object under the mc<id> kobject
 	 */
-	for (i = 0; i < mci->nr_csrows; i++) {
+	for (i = 0; i < mci->num_csrows; i++) {
 		int n = 0;
 
 		csrow = &mci->csrows[i];
@@ -1155,11 +1167,17 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	/*
 	 * Make directories for each DIMM object under the mc<id> kobject
 	 */
-	for (j = 0; j < mci->nr_dimms; j++) {
-		/* Only expose populated CSROWs */
-		if (mci->dimms[j].nr_pages == 0)
+	for (j = 0; j < mci->tot_dimms; j++) {
+		struct dimm_info *dimm = &mci->dimms[j];
+		/* Only expose populated DIMMs */
+		if (dimm->nr_pages == 0)
 			continue;
-		err = edac_create_dimm_object(mci, &mci->dimms[j] , j);
+
+		debugf1("%s creating dimm%d, located at %d.%d.%d.%d.%d\n",
+			__func__, j, dimm->mc_branch, dimm->mc_channel,
+			dimm->mc_dimm_number, dimm->csrow, dimm->cschannel);
+
+		err = edac_create_dimm_object(mci, dimm, j);
 		if (err) {
 			debugf1("%s() failure: create dimm %d obj\n",
 				__func__, j);
@@ -1213,11 +1231,11 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	/* remove all csrow kobjects */
 	debugf4("%s()  unregister this mci kobj\n", __func__);
-	for (i = 0; i < mci->nr_dimms; i++) {
+	for (i = 0; i < mci->tot_dimms; i++) {
 		debugf0("%s()  unreg dimm-%d\n", __func__, i);
 		kobject_put(&mci->dimms[i].kobj);
 	}
-	for (i = 0; i < mci->nr_csrows; i++) {
+	for (i = 0; i < mci->num_csrows; i++) {
 		int n = 0;
 
 		csrow = &mci->csrows[i];
