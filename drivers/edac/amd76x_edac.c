@@ -145,12 +145,10 @@ static int amd76x_process_error_info(struct mem_ctl_info *mci,
 
 		if (handle_errors) {
 			row = (info->ecc_mode_status >> 4) & 0xf;
-			edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-					     HW_EVENT_SCOPE_MC_CSROW_CHANNEL,
-					     mci, mci->csrows[row].first_page,
-					     0, 0,
-					     -1, -1, row, row, 0,
-					     mci->ctl_name, "");
+			edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
+					     mci->csrows[row].first_page, 0, 0,
+					     row, 0, -1,
+					     mci->ctl_name, "", NULL);
 		}
 	}
 
@@ -162,12 +160,10 @@ static int amd76x_process_error_info(struct mem_ctl_info *mci,
 
 		if (handle_errors) {
 			row = info->ecc_mode_status & 0xf;
-			edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-					     HW_EVENT_SCOPE_MC_CSROW_CHANNEL,
-					     mci, mci->csrows[row].first_page,
-					     0, 0,
-					     -1, -1, row, row, 0,
-					     mci->ctl_name, "");
+			edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci,
+					     mci->csrows[row].first_page, 0, 0,
+					     row, 0, -1,
+					     mci->ctl_name, "", NULL);
 		}
 	}
 
@@ -239,7 +235,8 @@ static int amd76x_probe1(struct pci_dev *pdev, int dev_idx)
 		EDAC_SECDED,
 		EDAC_SECDED
 	};
-	struct mem_ctl_info *mci = NULL;
+	struct mem_ctl_info *mci;
+	struct edac_mc_layer layers[2];
 	u32 ems;
 	u32 ems_mode;
 	struct amd76x_error_info discard;
@@ -247,9 +244,15 @@ static int amd76x_probe1(struct pci_dev *pdev, int dev_idx)
 	debugf0("%s()\n", __func__);
 	pci_read_config_dword(pdev, AMD76X_ECC_MODE_STATUS, &ems);
 	ems_mode = (ems >> 10) & 0x3;
-	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_MCCHANNEL_IS_CSROW,
-			    0, 0, AMD76X_NR_CSROWS,
-			    AMD76X_NR_CSROWS, 1, 0);
+
+	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
+	layers[0].size = AMD76X_NR_CSROWS;
+	layers[0].is_csrow = true;
+	layers[1].type = EDAC_MC_LAYER_CHANNEL;
+	layers[1].size = 1;
+	layers[1].is_csrow = false;
+	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, 0);
+
 	if (mci == NULL)
 		return -ENOMEM;
 

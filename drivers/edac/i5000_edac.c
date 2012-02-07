@@ -537,11 +537,10 @@ static void i5000_process_fatal_error_info(struct mem_ctl_info *mci,
 		 bank, ras, cas, allErrors, specific);
 
 	/* Call the helper to output message */
-	edac_mc_handle_error(HW_EVENT_ERR_FATAL,
-			     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
-			     branch >> 1, -1, rank, -1, -1,
+	edac_mc_handle_error(HW_EVENT_ERR_FATAL, mci, 0, 0, 0,
+			     branch >> 1, -1, rank,
 			     rdwr ? "Write error" : "Read error",
-			     msg);
+			     msg, NULL);
 }
 
 /*
@@ -639,11 +638,10 @@ static void i5000_process_nonfatal_error_info(struct mem_ctl_info *mci,
 			 rank, bank, ras, cas, ue_errors, specific);
 
 		/* Call the helper to output message */
-		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-				HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
-				channel >> 1, -1, rank, -1, -1,
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci, 0, 0, 0,
+				channel >> 1, -1, rank,
 				rdwr ? "Write error" : "Read error",
-				msg);
+				msg, NULL);
 	}
 
 	/* Check correctable errors */
@@ -695,11 +693,10 @@ static void i5000_process_nonfatal_error_info(struct mem_ctl_info *mci,
 			 specific);
 
 		/* Call the helper to output message */
-		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-				HW_EVENT_SCOPE_MC_CHANNEL, mci, 0, 0, 0,
-				channel >> 1, channel % 2, rank, -1, -1,
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci, 0, 0, 0,
+				channel >> 1, channel % 2, rank,
 				rdwr ? "Write error" : "Read error",
-				msg);
+				msg, NULL);
 	}
 
 	if (!misc_messages)
@@ -742,10 +739,9 @@ static void i5000_process_nonfatal_error_info(struct mem_ctl_info *mci,
 			 "Err=%#x (%s)", misc_errors, specific);
 
 		/* Call the helper to output message */
-		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-				HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
-				branch >> 1, -1, -1, -1, -1,
-				"Misc error", msg);
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci, 0, 0, 0,
+				branch >> 1, -1, -1,
+				"Misc error", msg, NULL);
 	}
 }
 
@@ -1357,10 +1353,10 @@ static void i5000_get_dimm_and_channel_counts(struct pci_dev *pdev,
 static int i5000_probe1(struct pci_dev *pdev, int dev_idx)
 {
 	struct mem_ctl_info *mci;
+	struct edac_mc_layer layers[3];
 	struct i5000_pvt *pvt;
 	int num_channels;
 	int num_dimms_per_channel;
-	int num_csrows;
 
 	debugf0("MC: %s: %s(), pdev bus %u dev=0x%x fn=0x%x\n",
 		__FILE__, __func__,
@@ -1386,15 +1382,21 @@ static int i5000_probe1(struct pci_dev *pdev, int dev_idx)
 	 */
 	i5000_get_dimm_and_channel_counts(pdev, &num_dimms_per_channel,
 					&num_channels);
-	num_csrows = num_dimms_per_channel * 2;
 
-	debugf0("MC: %s(): Number of - Channels= %d  DIMMS= %d  CSROWS= %d\n",
-		__func__, num_channels, num_dimms_per_channel, num_csrows);
+	debugf0("MC: %s(): Number of Branches=2 Channels= %d  DIMMS= %d\n",
+		__func__, num_channels, num_dimms_per_channel);
 
 	/* allocate a new MC control structure */
-	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    2, num_channels, num_dimms_per_channel,
-			    num_csrows, num_channels, sizeof(*pvt));
+	layers[0].type = EDAC_MC_LAYER_BRANCH;
+	layers[0].size = 2;
+	layers[0].is_csrow = true;
+	layers[1].type = EDAC_MC_LAYER_CHANNEL;
+	layers[1].size = num_channels;
+	layers[1].is_csrow = false;
+	layers[2].type = EDAC_MC_LAYER_SLOT;
+	layers[2].size = num_dimms_per_channel;
+	layers[2].is_csrow = true;
+	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, sizeof(*pvt));
 
 	if (mci == NULL)
 		return -ENOMEM;

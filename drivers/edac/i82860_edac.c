@@ -109,10 +109,8 @@ static int i82860_process_error_info(struct mem_ctl_info *mci,
 		return 1;
 
 	if ((info->errsts ^ info->errsts2) & 0x0003) {
-		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-				     HW_EVENT_SCOPE_MC, mci, 0, 0, 0,
-				     -1, -1, -1, -1, -1,
-				     "UE overwrote CE", "");
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci, 0, 0, 0,
+				     -1, -1, -1, "UE overwrote CE", "", NULL);
 		info->errsts = info->errsts2;
 	}
 
@@ -121,19 +119,15 @@ static int i82860_process_error_info(struct mem_ctl_info *mci,
 	dimm = mci->csrows[row].channels[0].dimm;
 
 	if (info->errsts & 0x0002)
-		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-				     HW_EVENT_SCOPE_MC_DIMM, mci,
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
 				     info->eap, 0, 0,
-				     dimm->mc_branch, dimm->mc_channel,
-				     dimm->mc_dimm_number, -1, -1,
-				     "i82860 UE", "");
+				     dimm->location[0], dimm->location[1], -1,
+				     "i82860 UE", "", NULL);
 	else
-		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-				     HW_EVENT_SCOPE_MC_DIMM, mci,
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
 				     info->eap, 0, info->derrsyn,
-				     dimm->mc_branch, dimm->mc_channel,
-				     dimm->mc_dimm_number, -1, -1,
-				     "i82860 CE", "");
+				     dimm->location[0], dimm->location[1], -1,
+				     "i82860 CE", "", NULL);
 
 	return 1;
 }
@@ -193,6 +187,7 @@ static void i82860_init_csrows(struct mem_ctl_info *mci, struct pci_dev *pdev)
 static int i82860_probe1(struct pci_dev *pdev, int dev_idx)
 {
 	struct mem_ctl_info *mci;
+	struct edac_mc_layer layers[2];
 	struct i82860_error_info discard;
 
 	/*
@@ -205,12 +200,13 @@ static int i82860_probe1(struct pci_dev *pdev, int dev_idx)
 	 * the channel and the GRA registers map to physical devices so we are
 	 * going to make 1 channel for group.
 	 */
-
-	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    1, 2 /* channels */, 8 /* sticks per channel */,
-			    16, 1,
-			    0);
-
+	layers[0].type = EDAC_MC_LAYER_CHANNEL;
+	layers[0].size = 2;
+	layers[0].is_csrow = true;
+	layers[1].type = EDAC_MC_LAYER_SLOT;
+	layers[1].size = 8;
+	layers[1].is_csrow = true;
+	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, 0);
 	if (!mci)
 		return -ENOMEM;
 

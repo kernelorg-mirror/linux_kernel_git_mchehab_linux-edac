@@ -353,11 +353,10 @@ static void do_process_ce(struct mem_ctl_info *mci, u16 error_one,
 	channel = !(error_one & 1);
 
 	/* e752x mc reads 34:6 of the DRAM linear address */
-	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-			     HW_EVENT_SCOPE_MC, mci,
+	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci,
 			     page, offset_in_page(sec1_add << 4), sec1_syndrome,
-			     -1, -1, -1, row, channel,
-			     "e752x CE", "");
+			     row, channel, -1,
+			     "e752x CE", "", NULL);
 }
 
 static inline void process_ce(struct mem_ctl_info *mci, u16 error_one,
@@ -391,12 +390,11 @@ static void do_process_ue(struct mem_ctl_info *mci, u16 error_one,
 			edac_mc_find_csrow_by_page(mci, block_page);
 
 		/* e752x mc reads 34:6 of the DRAM linear address */
-		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-					HW_EVENT_SCOPE_MC_CSROW, mci,
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
 					block_page,
 					offset_in_page(error_2b << 4), 0,
-					-1, -1, -1, row, -1,
-					"e752x UE from Read", "");
+					 row, -1, -1,
+					"e752x UE from Read", "", NULL);
 
 	}
 	if (error_one & 0x0404) {
@@ -411,12 +409,11 @@ static void do_process_ue(struct mem_ctl_info *mci, u16 error_one,
 			edac_mc_find_csrow_by_page(mci, block_page);
 
 		/* e752x mc reads 34:6 of the DRAM linear address */
-		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-					HW_EVENT_SCOPE_MC_CSROW, mci,
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
 					block_page,
 					offset_in_page(error_2b << 4), 0,
-					-1, -1, -1, row, -1,
-					"e752x UE from Scruber", "");
+					row, -1, -1,
+					"e752x UE from Scruber", "", NULL);
 	}
 }
 
@@ -439,10 +436,9 @@ static inline void process_ue_no_info_wr(struct mem_ctl_info *mci,
 		return;
 
 	debugf3("%s()\n", __func__);
-	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-			     HW_EVENT_SCOPE_MC, mci, 0, 0, 0,
-			     -1, -1, -1, -1, -1,
-			     "e752x UE log memory write", "");
+	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci, 0, 0, 0,
+			     -1, -1, -1,
+			     "e752x UE log memory write", "", NULL);
 }
 
 static void do_process_ded_retry(struct mem_ctl_info *mci, u16 error,
@@ -1248,6 +1244,7 @@ static int e752x_probe1(struct pci_dev *pdev, int dev_idx)
 	u16 pci_data;
 	u8 stat8;
 	struct mem_ctl_info *mci;
+	struct edac_mc_layer layers[2];
 	struct e752x_pvt *pvt;
 	u16 ddrcsr;
 	int drc_chan;		/* Number of channels 0=1chan,1=2chan */
@@ -1274,13 +1271,16 @@ static int e752x_probe1(struct pci_dev *pdev, int dev_idx)
 	/* Dual channel = 1, Single channel = 0 */
 	drc_chan = dual_channel_active(ddrcsr);
 
-	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    0, 0, E752X_NR_CSROWS * (drc_chan + 1),
-			    E752X_NR_CSROWS, drc_chan + 1, sizeof(*pvt));
-
-	if (mci == NULL) {
+	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
+	layers[0].size = E752X_NR_CSROWS;
+	layers[0].is_csrow = true;
+	layers[1].type = EDAC_MC_LAYER_CHANNEL;
+	layers[1].size = drc_chan + 1;
+	layers[1].is_csrow = false;
+	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers,
+			    false, sizeof(*pvt));
+	if (mci == NULL)
 		return -ENOMEM;
-	}
 
 	debugf3("%s(): init mci\n", __func__);
 	mci->mtype_cap = MEM_FLAG_RDDR;

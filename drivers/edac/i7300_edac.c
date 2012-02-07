@@ -467,11 +467,10 @@ static void i7300_process_fbd_error(struct mem_ctl_info *mci)
 			 "Bank=%d RAS=%d CAS=%d Err=0x%lx (%s))",
 			 bank, ras, cas, errors, specific);
 
-		edac_mc_handle_error(HW_EVENT_ERR_FATAL,
-				     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
-				     branch, -1, rank, -1, -1,
+		edac_mc_handle_error(HW_EVENT_ERR_FATAL, mci, 0, 0, 0,
+				     branch, -1, rank,
 				     is_wr ? "Write error" : "Read error",
-				     pvt->tmp_prt_buffer);
+				     pvt->tmp_prt_buffer, NULL);
 
 	}
 
@@ -514,12 +513,11 @@ static void i7300_process_fbd_error(struct mem_ctl_info *mci)
 			 "DRAM-Bank=%d RAS=%d CAS=%d, Err=0x%lx (%s))",
 			 bank, ras, cas, errors, specific);
 
-		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-				     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0,
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci, 0, 0,
 				     syndrome,
-				     branch >> 1, channel % 2, rank, -1, -1,
+				     branch >> 1, channel % 2, rank,
 				     is_wr ? "Write error" : "Read error",
-				     pvt->tmp_prt_buffer);
+				     pvt->tmp_prt_buffer, NULL);
 	}
 	return;
 }
@@ -1027,10 +1025,8 @@ static int __devinit i7300_init_one(struct pci_dev *pdev,
 				    const struct pci_device_id *id)
 {
 	struct mem_ctl_info *mci;
+	struct edac_mc_layer layers[3];
 	struct i7300_pvt *pvt;
-	int num_channels;
-	int num_dimms_per_channel;
-	int num_csrows;
 	int rc;
 
 	/* wake up device */
@@ -1047,25 +1043,17 @@ static int __devinit i7300_init_one(struct pci_dev *pdev,
 	if (PCI_FUNC(pdev->devfn) != 0)
 		return -ENODEV;
 
-	/* As we don't have a motherboard identification routine to determine
-	 * actual number of slots/dimms per channel, we thus utilize the
-	 * resource as specified by the chipset. Thus, we might have
-	 * have more DIMMs per channel than actually on the mobo, but this
-	 * allows the driver to support up to the chipset max, without
-	 * some fancy mobo determination.
-	 */
-	num_dimms_per_channel = MAX_SLOTS;
-	num_channels = MAX_CHANNELS;
-	num_csrows = MAX_SLOTS * MAX_CHANNELS;
-
-	debugf0("MC: %s(): Number of - Channels= %d  DIMMS= %d  CSROWS= %d\n",
-		__func__, num_channels, num_dimms_per_channel, num_csrows);
-
 	/* allocate a new MC control structure */
-	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    MAX_BRANCHES, num_channels / MAX_BRANCHES,
-			    num_dimms_per_channel,
-			    num_csrows, num_channels, sizeof(*pvt));
+	layers[0].type = EDAC_MC_LAYER_BRANCH;
+	layers[0].size = MAX_BRANCHES;
+	layers[0].is_csrow = false;
+	layers[1].type = EDAC_MC_LAYER_CHANNEL;
+	layers[1].size = MAX_CHANNELS;
+	layers[1].is_csrow = true;
+	layers[2].type = EDAC_MC_LAYER_SLOT;
+	layers[2].size = MAX_SLOTS;
+	layers[2].is_csrow = true;
+	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, sizeof(*pvt));
 
 	if (mci == NULL)
 		return -ENOMEM;

@@ -132,17 +132,13 @@ static const char *edac_caps[] = {
 static ssize_t csrow_ue_count_show(struct csrow_info *csrow, char *data,
 				int private)
 {
-	struct mem_ctl_info *mci = csrow->mci;
-
-	return sprintf(data, "%u\n", mci->err.ue_csrow[csrow->csrow_idx]);
+	return sprintf(data, "%u\n", csrow->ue_count);
 }
 
 static ssize_t csrow_ce_count_show(struct csrow_info *csrow, char *data,
 				int private)
 {
-	struct mem_ctl_info *mci = csrow->mci;
-
-	return sprintf(data, "%u\n", mci->err.ce_csrow[csrow->csrow_idx]);
+	return sprintf(data, "%u\n", csrow->ce_count);
 }
 
 static ssize_t csrow_size_show(struct csrow_info *csrow, char *data,
@@ -209,10 +205,7 @@ static ssize_t channel_dimm_label_store(struct csrow_info *csrow,
 static ssize_t channel_ce_count_show(struct csrow_info *csrow,
 				char *data, int channel)
 {
-	struct mem_ctl_info *mci = csrow->mci;
-	int index = csrow->csrow_idx * mci->num_cschannel + channel;
-
-	return sprintf(data, "%u\n", mci->err.ce_cschannel[index]);
+	return sprintf(data, "%u\n", csrow->channels[channel].ce_count);
 }
 
 /* csrow specific attribute structure */
@@ -478,22 +471,15 @@ static const struct sysfs_ops dimmfs_ops = {
 /* show/store functions for DIMM Label attributes */
 static ssize_t dimmdev_location_show(struct dimm_info *dimm, char *data)
 {
+	struct mem_ctl_info *mci = dimm->mci;
+	int i;
 	char *p = data;
 
-	if (dimm->mc_branch >= 0)
-		p += sprintf(p, "branch %d ", dimm->mc_branch);
-
-	if (dimm->mc_channel >= 0)
-		p += sprintf(p, "channel %d ", dimm->mc_channel);
-
-	if (dimm->mc_dimm_number >= 0)
-		p += sprintf(p, "dimm %d ", dimm->mc_dimm_number);
-
-	if (dimm->csrow >= 0)
-		p += sprintf(p, "csrow %d ", dimm->csrow);
-
-	if (dimm->cschannel >= 0)
-		p += sprintf(p, "cs_channel %d ", dimm->cschannel);
+	for (i = 0; i <= mci->n_layers; i++) {
+		p += sprintf(p, "%s %d ",
+			     edac_layer_name[mci->layers[i].type],
+			     dimm->location[i]);
+	}
 
 	return p - data;
 }
@@ -621,27 +607,29 @@ err_out:
 static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
 					const char *data, size_t count)
 {
-	int num;
-	mci->err.ue_mc = 0;
-	mci->err.ce_mc = 0;
+	int cnt, row, chan, i;
+	mci->ue_mc = 0;
+	mci->ce_mc = 0;
 	mci->ue_noinfo_count = 0;
 	mci->ce_noinfo_count = 0;
 
-	num = mci->num_branch;
-	memset(mci->err.ue_branch, 0, num);
-	memset(mci->err.ce_branch, 0, num);
-	num *= mci->num_channel;
-	memset(mci->err.ue_channel, 0, num);
-	memset(mci->err.ce_channel, 0, num);
-	num *= mci->num_dimm;
-	memset(mci->err.ue_dimm, 0, num);
-	memset(mci->err.ce_dimm, 0, num);
-	num *= mci->num_csrows;
-	memset(mci->err.ue_csrow, 0, num);
-	memset(mci->err.ce_csrow, 0, num);
-	num *= mci->num_cschannel;
-	memset(mci->err.ue_cschannel, 0, num);
-	memset(mci->err.ce_cschannel, 0, num);
+
+	for (row = 0; row < mci->num_csrows; row++) {
+		struct csrow_info *ri = &mci->csrows[row];
+
+		ri->ue_count = 0;
+		ri->ce_count = 0;
+
+		for (chan = 0; chan < ri->nr_channels; chan++)
+			ri->channels[chan].ce_count = 0;
+	}
+
+	cnt = 1;
+	for (i = 0; i < mci->n_layers; i++) {
+		cnt *= mci->layers[i].size;
+		memset(mci->ce_per_layer[i], 0, cnt);
+		memset(mci->ue_per_layer[i], 0, cnt);
+	}
 
 	mci->start_time = jiffies;
 	return count;
@@ -700,12 +688,12 @@ static ssize_t mci_sdram_scrub_rate_show(struct mem_ctl_info *mci, char *data)
 /* default attribute files for the MCI object */
 static ssize_t mci_ue_count_show(struct mem_ctl_info *mci, char *data)
 {
-	return sprintf(data, "%d\n", mci->err.ue_mc);
+	return sprintf(data, "%d\n", mci->ue_mc);
 }
 
 static ssize_t mci_ce_count_show(struct mem_ctl_info *mci, char *data)
 {
-	return sprintf(data, "%d\n", mci->err.ce_mc);
+	return sprintf(data, "%d\n", mci->ce_mc);
 }
 
 static ssize_t mci_ce_noinfo_show(struct mem_ctl_info *mci, char *data)
@@ -1172,11 +1160,18 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 		/* Only expose populated DIMMs */
 		if (dimm->nr_pages == 0)
 			continue;
-
-		debugf1("%s creating dimm%d, located at %d.%d.%d.%d.%d\n",
-			__func__, j, dimm->mc_branch, dimm->mc_channel,
-			dimm->mc_dimm_number, dimm->csrow, dimm->cschannel);
-
+#ifdef CONFIG_EDAC_DEBUG
+		debugf1("%s creating dimm%d, located at ",
+			__func__, j);
+		if (edac_debug_level >= 1) {
+			int lay;
+			for (lay = 0; lay < mci->n_layers; lay++)
+				printk(KERN_CONT "%s %d ",
+					edac_layer_name[mci->layers[lay].type],
+					dimm->location[lay]);
+			printk(KERN_CONT "\n");
+		}
+#endif
 		err = edac_create_dimm_object(mci, dimm, j);
 		if (err) {
 			debugf1("%s() failure: create dimm %d obj\n",

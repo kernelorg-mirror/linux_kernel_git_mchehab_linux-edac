@@ -426,11 +426,10 @@ static void i5100_handle_ce(struct mem_ctl_info *mci,
 		 "bank %u, cas %u, ras %u\n",
 		 bank, cas, ras);
 
-	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-			     HW_EVENT_SCOPE_MC_DIMM, mci,
+	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci,
 			     0, 0, syndrome,
-			     0, chan, rank, -1, -1,
-			     msg, detail);
+			     chan, rank, -1,
+			     msg, detail, NULL);
 }
 
 static void i5100_handle_ue(struct mem_ctl_info *mci,
@@ -449,11 +448,10 @@ static void i5100_handle_ue(struct mem_ctl_info *mci,
 		 "bank %u, cas %u, ras %u\n",
 		 bank, cas, ras);
 
-	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-			     HW_EVENT_SCOPE_MC_DIMM, mci,
+	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
 			     0, 0, syndrome,
-			     0, chan, rank, -1, -1,
-			     msg, detail);
+			     chan, rank, -1,
+			     msg, detail, NULL);
 }
 
 static void i5100_read_log(struct mem_ctl_info *mci, int chan,
@@ -864,6 +862,7 @@ static int __devinit i5100_init_one(struct pci_dev *pdev,
 {
 	int rc;
 	struct mem_ctl_info *mci;
+	struct edac_mc_layer layers[2];
 	struct i5100_priv *priv;
 	struct pci_dev *ch0mm, *ch1mm;
 	int ret = 0;
@@ -924,9 +923,14 @@ static int __devinit i5100_init_one(struct pci_dev *pdev,
 		goto bail_ch1;
 	}
 
-	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    1, 2, ranksperch,
-			    ranksperch * 2, 1, sizeof(*priv));
+	layers[0].type = EDAC_MC_LAYER_CHANNEL;
+	layers[0].size = 2;
+	layers[0].is_csrow = false;
+	layers[1].type = EDAC_MC_LAYER_SLOT;
+	layers[1].size = ranksperch;
+	layers[1].is_csrow = false;
+	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers,
+			    false, sizeof(*priv));
 	if (!mci) {
 		ret = -ENOMEM;
 		goto bail_disable_ch1;

@@ -219,20 +219,15 @@ static void process_ce(struct mem_ctl_info *mci, struct e7xxx_error_info *info)
 	row = edac_mc_find_csrow_by_page(mci, page);
 	/* convert syndrome to channel */
 	channel = e7xxx_find_channel(syndrome);
-	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-			     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
-			     page, 0, syndrome,
-			     -1, -1, -1, row, channel,
-			     "e7xxx CE", "");
+	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci, page, 0, syndrome,
+			     row, channel, -1, "e7xxx CE", "", NULL);
 }
 
 static void process_ce_no_info(struct mem_ctl_info *mci)
 {
 	debugf3("%s()\n", __func__);
-	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-			     HW_EVENT_SCOPE_MC, mci, 0, 0, 0,
-			     -1, -1, -1, -1, -1,
-			     "e7xxx CE log register overflow", "");
+	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci, 0, 0, 0, -1, -1, -1,
+			     "e7xxx CE log register overflow", "", NULL);
 }
 
 static void process_ue(struct mem_ctl_info *mci, struct e7xxx_error_info *info)
@@ -247,20 +242,16 @@ static void process_ue(struct mem_ctl_info *mci, struct e7xxx_error_info *info)
 	block_page = error_2b >> 6;	/* convert to 4k address */
 	row = edac_mc_find_csrow_by_page(mci, block_page);
 
-	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-			     HW_EVENT_SCOPE_MC_CSROW, mci, block_page, 0, 0,
-			     -1, -1, -1, row, -1,
-			     "e7xxx UE", "");
+	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci, block_page, 0, 0,
+			     row, -1, -1, "e7xxx UE", "", NULL);
 }
 
 static void process_ue_no_info(struct mem_ctl_info *mci)
 {
 	debugf3("%s()\n", __func__);
 
-	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-			     HW_EVENT_SCOPE_MC, mci, 0, 0, 0,
-			     -1, -1, -1, -1, -1,
-			     "e7xxx UE log register overflow", "");
+	edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci, 0, 0, 0, -1, -1, -1,
+			     "e7xxx UE log register overflow", "", NULL);
 }
 
 static void e7xxx_get_error_info(struct mem_ctl_info *mci,
@@ -431,6 +422,7 @@ static int e7xxx_probe1(struct pci_dev *pdev, int dev_idx)
 {
 	u16 pci_data;
 	struct mem_ctl_info *mci = NULL;
+	struct edac_mc_layer layers[2];
 	struct e7xxx_pvt *pvt = NULL;
 	u32 drc;
 	int drc_chan;
@@ -449,10 +441,13 @@ static int e7xxx_probe1(struct pci_dev *pdev, int dev_idx)
 	 * will map the rank. So, an error to either channel should be
 	 * attributed to the same dimm.
 	 */
-	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    0, 0, E7XXX_NR_DIMMS,
-			    E7XXX_NR_CSROWS, drc_chan + 1, sizeof(*pvt));
-
+	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
+	layers[0].size = E7XXX_NR_CSROWS;
+	layers[0].is_csrow = true;
+	layers[1].type = EDAC_MC_LAYER_CHANNEL;
+	layers[1].size = drc_chan + 1;
+	layers[1].is_csrow = false;
+	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, sizeof(*pvt));
 	if (mci == NULL)
 		return -ENOMEM;
 

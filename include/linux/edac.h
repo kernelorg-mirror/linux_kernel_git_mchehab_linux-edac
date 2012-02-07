@@ -206,41 +206,6 @@ enum hw_event_mc_err_type {
 };
 
 /**
- * enum hw_event_error_scope - escope of a memory error
- *
- * @HW_EVENT_ERR_MC:		error can be anywhere inside the MC
- * @HW_EVENT_SCOPE_MC_BRANCH:	error can be on any DIMM inside the branch
- * @HW_EVENT_SCOPE_MC_CHANNEL:	error can be on any DIMM inside the MC channel
- * @HW_EVENT_SCOPE_MC_DIMM:	error is on a specific DIMM
- * @HW_EVENT_SCOPE_MC_CSROW:	error can be on any DIMM inside the csrow
- * @HW_EVENT_SCOPE_MC_CSROW_CHANNEL: error is on a CSROW channel
- *
- * Depending on the error detection algorithm, the memory topology and even
- * the MC capabilities, some errors can't be attributed to just one DIMM, but
- * to a group of memory sockets. Depending on where the error occurs, the
- * EDAC core will increment the corresponding error count for that entity,
- * and the upper entities. For example, assuming a system with 1 memory
- * controller 2 branches, 2 MC channels and 4 DIMMS on it, if an error
- * happens at channel 0, the error counts for channel 0, for branch 0 and
- * for the memory controller 0 will be incremented. The DIMM error counts won't
- * be incremented, as, in this example, the driver can't be 100% sure on what
- * memory the error actually occurred.
- *
- * The order here is important, as edac_mc_handle_error() will use it, in order
- * to check what parameters will be used. The smallest number should be
- * the hole memory controller, and the last one should be the more
- * fine-grained detail, e. g.: DIMM.
- */
-enum hw_event_error_scope {
-	HW_EVENT_SCOPE_MC,
-	HW_EVENT_SCOPE_MC_BRANCH,
-	HW_EVENT_SCOPE_MC_CHANNEL,
-	HW_EVENT_SCOPE_MC_DIMM,
-	HW_EVENT_SCOPE_MC_CSROW,
-	HW_EVENT_SCOPE_MC_CSROW_CHANNEL,
-};
-
-/**
  * enum mem_type - Type of the memory stick
  *
  * @MEM_EMPTY		Empty csrow
@@ -423,16 +388,51 @@ enum scrub_type {
 #define OP_RUNNING_POLL_INTR	0x203
 #define OP_OFFLINE		0x300
 
+/**
+ * enum edac_mc_layer - memory controller hierarchy layer
+ *
+ * @EDAC_MC_LAYER_BRANCH:	memory layer is named "branch"
+ * @EDAC_MC_LAYER_CHANNEL:	memory layer is named "channel"
+ * @EDAC_MC_LAYER_SLOT:		memory layer is named "slot"
+ * @EDAC_MC_LAYER_CHIP_SELECT:	memory layer is named "chip select"
+ *
+ * This enum is used by the drivers to tell edac_mc_sysfs what name should
+ * be used when describing a memory stick location.
+ */
+enum edac_mc_layer_type {
+	EDAC_MC_LAYER_BRANCH,
+	EDAC_MC_LAYER_CHANNEL,
+	EDAC_MC_LAYER_SLOT,
+	EDAC_MC_LAYER_CHIP_SELECT,
+};
+
+/**
+ * struct edac_mc_layer - describes the memory controller hierarchy
+ * @layer:		layer type
+ * @size:maximum size of the layer
+ * @is_csrow:		This layer is part of the "csrow" when old API
+ *			compatibility mode is enabled. Otherwise, it is
+ *			a channel
+ */
+struct edac_mc_layer {
+	enum edac_mc_layer_type	type;
+	unsigned 		size;
+	bool			is_csrow;
+};
+
+/*
+ * Maximum number of layers used by the memory controller to uniquelly
+ * identify a single memory stick.
+ * NOTE: change it also requires changing edac_mc_handle_error()
+ */
+#define EDAC_MAX_LAYERS		3
+
 /* FIXME: add the proper per-location error counts */
 struct dimm_info {
 	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
 
 	/* Memory location data */
-	int mc_branch;
-	int mc_channel;
-	int mc_dimm_number;
-	int csrow;
-	int cschannel;
+	unsigned location[EDAC_MAX_LAYERS];
 
 	struct kobject kobj;		/* sysfs kobject for this csrow */
 	struct mem_ctl_info *mci;	/* the parent */
@@ -442,13 +442,17 @@ struct dimm_info {
 	enum mem_type mtype;	/* memory dimm type */
 	enum edac_type edac_mode;	/* EDAC mode for this dimm */
 
-	u32 nr_pages;			/* number of pages in csrow */
+	u32 nr_pages;			/* number of pages on this dimm */
+
+	unsigned csrow, cschannel;	/* Points to the old API data */
 };
 
 struct csrow_channel_info {
 	int chan_idx;		/* channel index */
 	struct dimm_info *dimm;
 	struct csrow_info *csrow;	/* the parent */
+
+	u32 ce_count;		/* Correctable Errors for this csrow */
 };
 
 struct csrow_info {
@@ -459,6 +463,9 @@ struct csrow_info {
 	unsigned long last_page;	/* last page number in csrow */
 	unsigned long page_mask;	/* used for interleaving -
 					 * 0UL for non intlv */
+
+	u32 ue_count;		/* Uncorrectable Errors for this csrow */
+	u32 ce_count;		/* Correctable Errors for this csrow */
 
 	struct mem_ctl_info *mci;	/* the parent */
 
@@ -497,22 +504,9 @@ struct mcidev_sysfs_attribute {
         ssize_t (*store)(struct mem_ctl_info *, const char *,size_t);
 };
 
-/*
- * Error counters for all possible memory arrangements
- */
-struct error_counts {
-	u32 ce_mc;
-	u32 *ce_branch;
-	u32 *ce_channel;
-	u32 *ce_dimm;
-	u32 *ce_csrow;
-	u32 *ce_cschannel;
-	u32 ue_mc;
-	u32 *ue_branch;
-	u32 *ue_channel;
-	u32 *ue_dimm;
-	u32 *ue_csrow;
-	u32 *ue_cschannel;
+struct edac_hierarchy {
+	char		*name;
+	unsigned	nr;
 };
 
 /* MEMORY controller information structure
@@ -560,14 +554,11 @@ struct mem_ctl_info {
 					   unsigned long page);
 	int mc_idx;
 	struct csrow_info *csrows;
+	unsigned num_csrows, num_cschannel;
 
-	/* Number of allocated memory location data */
-	unsigned num_branch;
-	unsigned num_channel;
-	unsigned num_dimm;
-	unsigned num_csrows;
-	unsigned num_cschannel;
-
+	/* Memory Controller hierarchy */
+	unsigned n_layers;
+	struct edac_mc_layer *layers;
 	/*
 	 * DIMM info. Will eventually remove the entire csrows_info some day
 	 */
@@ -589,8 +580,9 @@ struct mem_ctl_info {
 	unsigned long start_time;	/* mci load start time (in jiffies) */
 
 	/* drivers shouldn't access this struct directly */
-	struct error_counts err;
 	unsigned ce_noinfo_count, ue_noinfo_count;
+	unsigned ce_mc, ue_mc;
+	u32 *ce_per_layer[EDAC_MAX_LAYERS], *ue_per_layer[EDAC_MAX_LAYERS];
 
 	struct completion complete;
 
