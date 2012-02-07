@@ -448,35 +448,10 @@ static inline void pci_write_bits32(struct pci_dev *pdev, int offset,
 
 #endif				/* CONFIG_PCI */
 
-/**
- * enum edac_alloc_fill_strategy - Controls the way csrows/cschannels are mapped
- * @EDAC_ALLOC_FILL_CSROW_CSCHANNEL:	csrows are rows, cschannels are channel.
- *					This is the default and should be used
- *					when the memory controller is able to
- *					see csrows/cschannels. The dimms are
- *					associated with cschannels.
- * @EDAC_ALLOC_FILL_MCCHANNEL_IS_CSROW:	mc_branch/mc_channel are mapped as
- *					cschannel. DIMMs inside each channel are
- *					mapped as csrows. Most FBDIMMs drivers
- *					use this model.
- *@EDAC_ALLOC_FILL_PRIV:		The driver uses its own mapping model.
- *					So, the core will leave the csrows
- *					struct unitialized, leaving to the
- *					driver the task of filling it.
- */
-enum edac_alloc_fill_strategy {
-	EDAC_ALLOC_FILL_CSROW_CSCHANNEL = 0,
-	EDAC_ALLOC_FILL_MCCHANNEL_IS_CSROW,
-	EDAC_ALLOC_FILL_PRIV,
-};
-
-struct mem_ctl_info *edac_mc_alloc(int edac_index,
-				   enum edac_alloc_fill_strategy fill_strategy,
-				   unsigned num_branch,
-				   unsigned num_channel,
-				   unsigned num_dimm,
-				   unsigned nr_csrows,
-				   unsigned num_cschans,
+struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
+				   unsigned n_layers,
+				   struct edac_mc_layer *layers,
+				   bool rev_order,
 				   unsigned sz_pvt);
 extern int edac_mc_add_mc(struct mem_ctl_info *mci);
 extern void edac_mc_free(struct mem_ctl_info *mci);
@@ -485,19 +460,17 @@ extern struct mem_ctl_info *find_mci_by_dev(struct device *dev);
 extern struct mem_ctl_info *edac_mc_del_mc(struct device *dev);
 extern int edac_mc_find_csrow_by_page(struct mem_ctl_info *mci,
 				      unsigned long page);
-void edac_mc_handle_error(enum hw_event_mc_err_type type,
-			  enum hw_event_error_scope scope,
+void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			  struct mem_ctl_info *mci,
-			  unsigned long page_frame_number,
-			  unsigned long offset_in_page,
-			  unsigned long syndrome,
-			  int mc_branch,
-			  int mc_channel,
-			  int mc_dimm_number,
-			  int csrow,
-			  int cschannel,
+			  const unsigned long page_frame_number,
+			  const unsigned long offset_in_page,
+			  const unsigned long syndrome,
+			  const int layer0,
+			  const int layer1,
+			  const int layer2,
 			  const char *msg,
-			  const char *other_detail);
+			  const char *other_detail,
+			  const void *mcelog);
 
 /*
  * edac_device APIs
@@ -509,6 +482,7 @@ extern void edac_device_handle_ue(struct edac_device_ctl_info *edac_dev,
 extern void edac_device_handle_ce(struct edac_device_ctl_info *edac_dev,
 				int inst_nr, int block_nr, const char *msg);
 extern int edac_device_alloc_index(void);
+extern const char *edac_layer_name[];
 
 /*
  * edac_pci APIs

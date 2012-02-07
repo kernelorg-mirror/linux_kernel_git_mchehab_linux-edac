@@ -110,20 +110,16 @@ static void pasemi_edac_process_error_info(struct mem_ctl_info *mci, u32 errsta)
 	/* uncorrectable/multi-bit errors */
 	if (errsta & (MCDEBUG_ERRSTA_MBE_STATUS |
 		      MCDEBUG_ERRSTA_RFL_STATUS)) {
-		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
 				     mci->csrows[cs].first_page, 0, 0,
-				     -1, -1, -1, cs, 0,
-				     mci->ctl_name, "");
+				     cs, 0, -1, mci->ctl_name, "", NULL);
 	}
 
 	/* correctable/single-bit errors */
 	if (errsta & MCDEBUG_ERRSTA_SBE_STATUS)
-		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci,
 				     mci->csrows[cs].first_page, 0, 0,
-				     -1, -1, -1, cs, 0,
-				     mci->ctl_name, "");
+				     cs, 0, -1, mci->ctl_name, "", NULL);
 }
 
 static void pasemi_edac_check(struct mem_ctl_info *mci)
@@ -196,6 +192,7 @@ static int __devinit pasemi_edac_probe(struct pci_dev *pdev,
 		const struct pci_device_id *ent)
 {
 	struct mem_ctl_info *mci = NULL;
+	struct edac_mc_layer layers[2];
 	u32 errctl1, errcor, scrub, mcen;
 
 	pci_read_config_dword(pdev, MCCFG_MCEN, &mcen);
@@ -212,10 +209,14 @@ static int __devinit pasemi_edac_probe(struct pci_dev *pdev,
 		MCDEBUG_ERRCTL1_RFL_LOG_EN;
 	pci_write_config_dword(pdev, MCDEBUG_ERRCTL1, errctl1);
 
-	mci = edac_mc_alloc(system_mmc_id++, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    0, 0, PASEMI_EDAC_NR_CSROWS,
-			    PASEMI_EDAC_NR_CSROWS, PASEMI_EDAC_NR_CHANS, 0);
-
+	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
+	layers[0].size = PASEMI_EDAC_NR_CSROWS;
+	layers[0].is_csrow = true;
+	layers[1].type = EDAC_MC_LAYER_CHANNEL;
+	layers[1].size = PASEMI_EDAC_NR_CHANS;
+	layers[1].is_csrow = false;
+	mci = edac_mc_alloc(system_mmc_id++, ARRAY_SIZE(layers), layers, false,
+			    0);
 	if (mci == NULL)
 		return -ENOMEM;
 

@@ -854,18 +854,16 @@ static void mpc85xx_mc_check(struct mem_ctl_info *mci)
 		mpc85xx_mc_printk(mci, KERN_ERR, "PFN out of range!\n");
 
 	if (err_detect & DDR_EDE_SBE)
-		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci,
 				     pfn, err_addr & ~PAGE_MASK, syndrome,
-				     -1, -1, -1, row_index, 0,
-				     mci->ctl_name, "");
+				     row_index, 0, -1,
+				     mci->ctl_name, "", NULL);
 
 	if (err_detect & DDR_EDE_MBE)
-		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED,
-				     HW_EVENT_SCOPE_MC_CSROW_CHANNEL, mci,
+		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
 				     pfn, err_addr & ~PAGE_MASK, syndrome,
-				     -1, -1, -1, row_index, 0,
-				     mci->ctl_name, "");
+				     row_index, 0, -1,
+				     mci->ctl_name, "", NULL);
 
 	out_be32(pdata->mc_vbase + MPC85XX_MC_ERR_DETECT, err_detect);
 }
@@ -967,6 +965,7 @@ static void __devinit mpc85xx_init_csrows(struct mem_ctl_info *mci)
 static int __devinit mpc85xx_mc_err_probe(struct platform_device *op)
 {
 	struct mem_ctl_info *mci;
+	struct edac_mc_layer layers[2];
 	struct mpc85xx_mc_pdata *pdata;
 	struct resource r;
 	u32 sdram_ctl;
@@ -975,8 +974,14 @@ static int __devinit mpc85xx_mc_err_probe(struct platform_device *op)
 	if (!devres_open_group(&op->dev, mpc85xx_mc_err_probe, GFP_KERNEL))
 		return -ENOMEM;
 
-	mci = edac_mc_alloc(edac_mc_idx, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    0, 0, 4, 4, 1, sizeof(*pdata));
+	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
+	layers[0].size = 4;
+	layers[0].is_csrow = true;
+	layers[1].type = EDAC_MC_LAYER_CHANNEL;
+	layers[1].size = 1;
+	layers[1].is_csrow = false;
+	mci = edac_mc_alloc(edac_mc_idx, ARRAY_SIZE(layers), layers, false,
+			    sizeof(*pdata));
 	if (!mci) {
 		devres_release_group(&op->dev, mpc85xx_mc_err_probe);
 		return -ENOMEM;
@@ -1165,7 +1170,6 @@ static void __init mpc85xx_mc_clear_rfxe(void *data)
 static int __init mpc85xx_mc_init(void)
 {
 	int res = 0;
-	u32 pvr = 0;
 
 	printk(KERN_INFO "Freescale(R) MPC85xx EDAC driver, "
 	       "(C) 2006 Montavista Software\n");

@@ -571,11 +571,10 @@ static void i5400_proccess_non_recoverable_info(struct mem_ctl_info *mci,
 		 "Bank=%d Buffer ID = %d RAS=%d CAS=%d Err=0x%lx (%s)",
 		 bank, buf_id, ras, cas, allErrors, error_name[errnum]);
 
-	edac_mc_handle_error(tp_event,
-			     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
-			     branch >> 1, -1, rank, -1, -1,
+	edac_mc_handle_error(tp_event, mci, 0, 0, 0,
+			     branch >> 1, -1, rank,
 			     rdwr ? "Write error" : "Read error",
-			     msg);
+			     msg, NULL);
 }
 
 /*
@@ -645,11 +644,10 @@ static void i5400_process_nonfatal_error_info(struct mem_ctl_info *mci,
 			 branch >> 1, bank, rdwr_str(rdwr), ras, cas,
 			 allErrors, error_name[errnum]);
 
-		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED,
-				     HW_EVENT_SCOPE_MC_BRANCH, mci, 0, 0, 0,
-				     branch >> 1, channel % 2, rank, -1, -1,
+		edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci, 0, 0, 0,
+				     branch >> 1, channel % 2, rank,
 				     rdwr ? "Write error" : "Read error",
-				     msg);
+				     msg, NULL);
 
 		return;
 	}
@@ -1208,9 +1206,7 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 {
 	struct mem_ctl_info *mci;
 	struct i5400_pvt *pvt;
-	int num_channels;
-	int num_dimms_per_channel;
-	int num_csrows;
+	struct edac_mc_layer layers[3];
 
 	if (dev_idx >= ARRAY_SIZE(i5400_devs))
 		return -EINVAL;
@@ -1224,24 +1220,17 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 	if (PCI_FUNC(pdev->devfn) != 0)
 		return -ENODEV;
 
-	/* As we don't have a motherboard identification routine to determine
-	 * actual number of slots/dimms per channel, we thus utilize the
-	 * resource as specified by the chipset. Thus, we might have
-	 * have more DIMMs per channel than actually on the mobo, but this
-	 * allows the driver to support up to the chipset max, without
-	 * some fancy mobo determination.
-	 */
-	num_dimms_per_channel = MAX_DIMMS_PER_CHANNEL;
-	num_channels = MAX_CHANNELS;
-	num_csrows = num_dimms_per_channel;
-
-	debugf0("MC: %s(): Number of - Channels= %d  DIMMS= %d  CSROWS= %d\n",
-		__func__, num_channels, num_dimms_per_channel, num_csrows);
-
 	/* allocate a new MC control structure */
-	mci = edac_mc_alloc(0, EDAC_ALLOC_FILL_CSROW_CSCHANNEL,
-			    2, num_channels, num_dimms_per_channel,
-			    num_csrows, num_channels, sizeof(*pvt));
+	layers[0].type = EDAC_MC_LAYER_BRANCH;
+	layers[0].size = 2;
+	layers[0].is_csrow = true;
+	layers[1].type = EDAC_MC_LAYER_CHANNEL;
+	layers[1].size = MAX_CHANNELS;
+	layers[1].is_csrow = false;
+	layers[2].type = EDAC_MC_LAYER_SLOT;
+	layers[2].size = MAX_DIMMS_PER_CHANNEL;
+	layers[2].is_csrow = true;
+	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, sizeof(*pvt));
 
 	if (mci == NULL)
 		return -ENOMEM;
@@ -1252,8 +1241,8 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 
 	pvt = mci->pvt_info;
 	pvt->system_address = pdev;	/* Record this device in our private */
-	pvt->maxch = num_channels;
-	pvt->maxdimmperch = num_dimms_per_channel;
+	pvt->maxch = MAX_CHANNELS;
+	pvt->maxdimmperch = MAX_DIMMS_PER_CHANNEL;
 
 	/* 'get' the pci devices we want to reserve for our use */
 	if (i5400_get_devices(mci, dev_idx))
