@@ -1,6 +1,7 @@
 #include "amd64_edac.h"
 
-static ssize_t amd64_inject_section_show(struct mem_ctl_info *mci, char *buf)
+static ssize_t amd64_inject_section_show(struct mem_ctl_info *mci, char *buf,
+					 void *priv)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
 	return sprintf(buf, "0x%x\n", pvt->injection.section);
@@ -13,7 +14,8 @@ static ssize_t amd64_inject_section_show(struct mem_ctl_info *mci, char *buf)
  * range: 0..3
  */
 static ssize_t amd64_inject_section_store(struct mem_ctl_info *mci,
-					  const char *data, size_t count)
+					  const char *data, size_t count,
+					  void *priv)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
 	unsigned long value;
@@ -33,7 +35,8 @@ static ssize_t amd64_inject_section_store(struct mem_ctl_info *mci,
 	return ret;
 }
 
-static ssize_t amd64_inject_word_show(struct mem_ctl_info *mci, char *buf)
+static ssize_t amd64_inject_word_show(struct mem_ctl_info *mci, char *buf,
+				      void *priv)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
 	return sprintf(buf, "0x%x\n", pvt->injection.word);
@@ -46,7 +49,8 @@ static ssize_t amd64_inject_word_show(struct mem_ctl_info *mci, char *buf)
  * range: 0..8
  */
 static ssize_t amd64_inject_word_store(struct mem_ctl_info *mci,
-					const char *data, size_t count)
+					const char *data, size_t count,
+					void *priv)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
 	unsigned long value;
@@ -66,7 +70,8 @@ static ssize_t amd64_inject_word_store(struct mem_ctl_info *mci,
 	return ret;
 }
 
-static ssize_t amd64_inject_ecc_vector_show(struct mem_ctl_info *mci, char *buf)
+static ssize_t amd64_inject_ecc_vector_show(struct mem_ctl_info *mci,
+					    char *buf, void *priv)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
 	return sprintf(buf, "0x%x\n", pvt->injection.bit_map);
@@ -78,7 +83,8 @@ static ssize_t amd64_inject_ecc_vector_show(struct mem_ctl_info *mci, char *buf)
  * DRAM ECC read, it holds the contents of the of the DRAM ECC bits.
  */
 static ssize_t amd64_inject_ecc_vector_store(struct mem_ctl_info *mci,
-					     const char *data, size_t count)
+					     const char *data, size_t count,
+					     void *priv)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
 	unsigned long value;
@@ -104,7 +110,8 @@ static ssize_t amd64_inject_ecc_vector_store(struct mem_ctl_info *mci,
  * fields needed by the injection registers and read the NB Array Data Port.
  */
 static ssize_t amd64_inject_read_store(struct mem_ctl_info *mci,
-					const char *data, size_t count)
+				       const char *data, size_t count,
+				       void *priv)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
 	unsigned long value;
@@ -137,7 +144,8 @@ static ssize_t amd64_inject_read_store(struct mem_ctl_info *mci,
  * fields needed by the injection registers.
  */
 static ssize_t amd64_inject_write_store(struct mem_ctl_info *mci,
-					const char *data, size_t count)
+					const char *data, size_t count,
+					void *priv)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
 	unsigned long value;

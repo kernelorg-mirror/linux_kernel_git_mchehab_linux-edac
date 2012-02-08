@@ -511,8 +511,19 @@ struct mcidev_sysfs_attribute {
 	const struct mcidev_sysfs_group *grp;	/* Points to a group of attributes */
 
 	/* Ops for show/store values at the attribute - not used on group */
-        ssize_t (*show)(struct mem_ctl_info *,char *);
-        ssize_t (*store)(struct mem_ctl_info *, const char *,size_t);
+	ssize_t (*show)(struct mem_ctl_info *, char *, void *);
+	ssize_t (*store)(struct mem_ctl_info *, const char *, size_t, void *);
+
+	void *priv;
+};
+
+/*
+ * struct errcount_attribute - used to store the several error counts
+ */
+struct errcount_attribute_data {
+	int n_layers;
+	int pos[EDAC_MAX_LAYERS];
+	int layer0, layer1, layer2;
 };
 
 struct edac_hierarchy {
@@ -594,6 +605,8 @@ struct mem_ctl_info {
 	unsigned ce_noinfo_count, ue_noinfo_count;
 	unsigned ce_mc, ue_mc;
 	u32 *ce_per_layer[EDAC_MAX_LAYERS], *ue_per_layer[EDAC_MAX_LAYERS];
+	struct mcidev_sysfs_attribute *errcount_attr;
+	struct errcount_attribute_data *errcount_attr_data;
 
 	struct completion complete;
 

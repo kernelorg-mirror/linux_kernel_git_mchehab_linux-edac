@@ -200,11 +200,13 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	struct edac_mc_layer *lay;
 	struct csrow_info *csi, *csr;
 	struct rank_info *chi, *chp, *chan;
+	struct mcidev_sysfs_attribute *erc;
+	struct errcount_attribute_data *ercd;
 	struct dimm_info *dimm;
 	u32 *ce_per_layer[EDAC_MAX_LAYERS], *ue_per_layer[EDAC_MAX_LAYERS];
 	void *pvt;
 	unsigned size, tot_dimms, count, pos[EDAC_MAX_LAYERS];
-	unsigned tot_csrows, tot_cschannels;
+	unsigned tot_csrows, tot_cschannels, tot_errcount = 0;
 	int i, j;
 	int err;
 	int row, chn;
@@ -239,9 +241,15 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	count = 1;
 	for (i = 0; i < n_layers; i++) {
 		count *= layers[i].size;
+		debugf4("%s: errcount layer %d size %d\n", __func__, i, count);
 		ce_per_layer[i] = edac_align_ptr(&ptr, sizeof(u32), count);
 		ue_per_layer[i] = edac_align_ptr(&ptr, sizeof(u32), count);
+		tot_errcount += 2 * count;
 	}
+
+	debugf4("%s: allocating %d error counters\n", __func__, tot_errcount);
+	erc = edac_align_ptr(&ptr, sizeof(*erc), tot_errcount);
+	ercd = edac_align_ptr(&ptr, sizeof(*ercd), tot_errcount);
 	pvt = edac_align_ptr(&ptr, sz_pvt, 1);
 	size = ((unsigned long)pvt) + sz_pvt;
 
@@ -262,6 +270,8 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 		mci->ce_per_layer[i] = (u32 *)((char *)mci + ((unsigned long)ce_per_layer[i]));
 		mci->ue_per_layer[i] = (u32 *)((char *)mci + ((unsigned long)ue_per_layer[i]));
 	}
+	erc = (struct mcidev_sysfs_attribute *)((char *)mci + ((unsigned long)erc));
+	ercd = (struct errcount_attribute_data *)((char *)mci + ((unsigned long)ercd));
 	pvt = sz_pvt ? (((char *)mci) + ((unsigned long)pvt)) : NULL;
 
 	/* setup index and various internal pointers */
@@ -269,6 +279,8 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	mci->csrows = csi;
 	mci->dimms  = dimm;
 	mci->tot_dimms = tot_dimms;
+	mci->errcount_attr = erc;
+	mci->errcount_attr_data = ercd;
 	mci->pvt_info = pvt;
 	mci->n_layers = n_layers;
 	mci->layers = lay;
