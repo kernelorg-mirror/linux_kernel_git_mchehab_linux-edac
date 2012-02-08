@@ -1,7 +1,8 @@
 #include "amd64_edac.h"
 
 #define EDAC_DCT_ATTR_SHOW(reg)						\
-static ssize_t amd64_##reg##_show(struct mem_ctl_info *mci, char *data)	\
+static ssize_t amd64_##reg##_show(struct mem_ctl_info *mci, char *data,	\
+				  void *priv)				\
 {									\
 	struct amd64_pvt *pvt = mci->pvt_info;				\
 		return sprintf(data, "0x%016llx\n", (u64)pvt->reg);	\
@@ -12,7 +13,8 @@ EDAC_DCT_ATTR_SHOW(dbam0);
 EDAC_DCT_ATTR_SHOW(top_mem);
 EDAC_DCT_ATTR_SHOW(top_mem2);
 
-static ssize_t amd64_hole_show(struct mem_ctl_info *mci, char *data)
+static ssize_t amd64_hole_show(struct mem_ctl_info *mci, char *data,
+			       void *priv)
 {
 	u64 hole_base = 0;
 	u64 hole_offset = 0;

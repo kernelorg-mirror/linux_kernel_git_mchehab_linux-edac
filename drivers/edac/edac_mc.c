@@ -206,11 +206,13 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	struct edac_mc_layer *lay;
 	struct csrow_info *csi, *csr;
 	struct csrow_channel_info *chi, *chp, *chan;
+	struct mcidev_sysfs_attribute *erc;
+	struct errcount_attribute_data *ercd;
 	struct dimm_info *dimm;
 	u32 *ce_per_layer[EDAC_MAX_LAYERS], *ue_per_layer[EDAC_MAX_LAYERS];
 	void *pvt;
 	unsigned size, tot_dimms, count, per_layer_count[EDAC_MAX_LAYERS];
-	unsigned tot_csrows, tot_cschannels;
+	unsigned tot_csrows, tot_cschannels, tot_errcount = 0;
 	int i, j;
 	int err;
 	int row, chn;
@@ -247,7 +249,14 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 		count *= layers[i].size;
 		ce_per_layer[i] = edac_align_ptr(&ptr, sizeof(unsigned), count);
 		ue_per_layer[i] = edac_align_ptr(&ptr, sizeof(unsigned), count);
+		if (i < n_layers - 1)
+			tot_errcount += 2 * count;
 	}
+	/*
+	 * The last error count is equal to DIMM. So, don't export it twice
+	 */
+	erc = edac_align_ptr(&ptr, sizeof(*erc), tot_errcount);
+	ercd = edac_align_ptr(&ptr, sizeof(*ercd), tot_errcount);
 	pvt = edac_align_ptr(&ptr, sz_pvt, 1);
 	size = ((unsigned long)pvt) + sz_pvt;
 
@@ -268,6 +277,8 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 		mci->ce_per_layer[i] = (u32 *)((char *)mci + ((unsigned long)ce_per_layer[i]));
 		mci->ue_per_layer[i] = (u32 *)((char *)mci + ((unsigned long)ue_per_layer[i]));
 	}
+	erc = (struct mcidev_sysfs_attribute *)((char *)mci + ((unsigned long)erc));
+	ercd = (struct errcount_attribute_data *)((char *)mci + ((unsigned long)ercd));
 	pvt = sz_pvt ? (((char *)mci) + ((unsigned long)pvt)) : NULL;
 
 	/* setup index and various internal pointers */
@@ -275,6 +286,8 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	mci->csrows = csi;
 	mci->dimms  = dimm;
 	mci->tot_dimms = tot_dimms;
+	mci->errcount_attr = erc;
+	mci->errcount_attr_data = ercd;
 	mci->pvt_info = pvt;
 	mci->n_layers = n_layers;
 	mci->layers = lay;
@@ -845,7 +858,7 @@ static void edac_increment_ce_error(struct mem_ctl_info *mci,
 		return;
 	}
 
-	for (i = 0; i <= mci->n_layers; i++) {
+	for (i = 0; i < mci->n_layers; i++) {
 		if (pos[i] < 0)
 			break;
 		index += pos[i];
@@ -867,7 +880,7 @@ static void edac_increment_ue_error(struct mem_ctl_info *mci,
 		return;
 	}
 
-	for (i = 0; i <= mci->n_layers; i++) {
+	for (i = 0; i < mci->n_layers; i++) {
 		if (pos[i] < 0)
 			break;
 		index += pos[i];
