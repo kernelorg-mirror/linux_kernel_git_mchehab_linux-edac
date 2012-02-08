@@ -475,7 +475,7 @@ static ssize_t dimmdev_location_show(struct dimm_info *dimm, char *data)
 	int i;
 	char *p = data;
 
-	for (i = 0; i <= mci->n_layers; i++) {
+	for (i = 0; i < mci->n_layers; i++) {
 		p += sprintf(p, "%s %d ",
 			     edac_layer_name[mci->layers[i].type],
 			     dimm->location[i]);
@@ -605,7 +605,8 @@ err_out:
 /* default sysfs methods and data structures for the main MCI kobject */
 
 static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
-					const char *data, size_t count)
+					const char *data, size_t count,
+					void *priv)
 {
 	int cnt, row, chan, i;
 	mci->ue_mc = 0;
@@ -627,8 +628,8 @@ static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
 	cnt = 1;
 	for (i = 0; i < mci->n_layers; i++) {
 		cnt *= mci->layers[i].size;
-		memset(mci->ce_per_layer[i], 0, cnt);
-		memset(mci->ue_per_layer[i], 0, cnt);
+		memset(mci->ce_per_layer[i], 0, cnt * sizeof(u32));
+		memset(mci->ue_per_layer[i], 0, cnt * sizeof(u32));
 	}
 
 	mci->start_time = jiffies;
@@ -645,7 +646,8 @@ static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
  * the scrub rate.
  */
 static ssize_t mci_sdram_scrub_rate_store(struct mem_ctl_info *mci,
-					  const char *data, size_t count)
+					  const char *data, size_t count,
+					  void *priv)
 {
 	unsigned long bandwidth = 0;
 	int new_bw = 0;
@@ -669,7 +671,8 @@ static ssize_t mci_sdram_scrub_rate_store(struct mem_ctl_info *mci,
 /*
  * ->get_sdram_scrub_rate() return value semantics same as above.
  */
-static ssize_t mci_sdram_scrub_rate_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_sdram_scrub_rate_show(struct mem_ctl_info *mci, char *data,
+					 void *priv)
 {
 	int bandwidth = 0;
 
@@ -686,37 +689,44 @@ static ssize_t mci_sdram_scrub_rate_show(struct mem_ctl_info *mci, char *data)
 }
 
 /* default attribute files for the MCI object */
-static ssize_t mci_ue_count_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_ue_count_show(struct mem_ctl_info *mci, char *data,
+				 void *priv)
 {
 	return sprintf(data, "%d\n", mci->ue_mc);
 }
 
-static ssize_t mci_ce_count_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_ce_count_show(struct mem_ctl_info *mci, char *data,
+				 void *priv)
 {
 	return sprintf(data, "%d\n", mci->ce_mc);
 }
 
-static ssize_t mci_ce_noinfo_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_ce_noinfo_show(struct mem_ctl_info *mci, char *data,
+				  void *priv)
 {
 	return sprintf(data, "%d\n", mci->ce_noinfo_count);
 }
 
-static ssize_t mci_ue_noinfo_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_ue_noinfo_show(struct mem_ctl_info *mci, char *data,
+				  void *priv)
 {
 	return sprintf(data, "%d\n", mci->ue_noinfo_count);
 }
 
-static ssize_t mci_seconds_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_seconds_show(struct mem_ctl_info *mci, char *data,
+				void *priv)
 {
 	return sprintf(data, "%ld\n", (jiffies - mci->start_time) / HZ);
 }
 
-static ssize_t mci_ctl_name_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_ctl_name_show(struct mem_ctl_info *mci, char *data,
+				 void *priv)
 {
 	return sprintf(data, "%s\n", mci->ctl_name);
 }
 
-static ssize_t mci_size_mb_show(struct mem_ctl_info *mci, char *data)
+static ssize_t mci_size_mb_show(struct mem_ctl_info *mci, char *data,
+				void *priv)
 {
 	int total_pages, csrow_idx, j;
 
@@ -747,7 +757,8 @@ static ssize_t mcidev_show(struct kobject *kobj, struct attribute *attr,
 	debugf1("%s() mem_ctl_info %p\n", __func__, mem_ctl_info);
 
 	if (mcidev_attr->show)
-		return mcidev_attr->show(mem_ctl_info, buffer);
+		return mcidev_attr->show(mem_ctl_info, buffer,
+					 mcidev_attr->priv);
 
 	return -EIO;
 }
@@ -761,7 +772,8 @@ static ssize_t mcidev_store(struct kobject *kobj, struct attribute *attr,
 	debugf1("%s() mem_ctl_info %p\n", __func__, mem_ctl_info);
 
 	if (mcidev_attr->store)
-		return mcidev_attr->store(mem_ctl_info, buffer, count);
+		return mcidev_attr->store(mem_ctl_info, buffer, count,
+					  mcidev_attr->priv);
 
 	return -EIO;
 }
@@ -773,10 +785,11 @@ static const struct sysfs_ops mci_ops = {
 };
 
 #define MCIDEV_ATTR(_name,_mode,_show,_store)			\
-static struct mcidev_sysfs_attribute mci_attr_##_name = {			\
+static struct mcidev_sysfs_attribute mci_attr_##_name = {	\
 	.attr = {.name = __stringify(_name), .mode = _mode },	\
 	.show   = _show,					\
 	.store  = _store,					\
+	.priv   = NULL,						\
 };
 
 /* default Control file */
@@ -808,6 +821,138 @@ static struct mcidev_sysfs_attribute *mci_attr[] = {
 	NULL
 };
 
+/*
+ * Per layer error count nodes
+ */
+static ssize_t errcount_ce_show(struct mem_ctl_info *mci, char *data,
+				void *priv)
+{
+	struct errcount_attribute_data *ead = priv;
+	int i, index = 0;
+
+	for (i = 0; i < ead->n_layers; i++) {
+		if (i < ead->n_layers - 1)
+			index += mci->layers[i + 1].size * ead->pos[i];
+		else
+			index += ead->pos[i];
+	}
+	return sprintf(data, "%u\n",
+		       mci->ce_per_layer[ead->n_layers - 1][index]);
+}
+
+static ssize_t errcount_ue_show(struct mem_ctl_info *mci, char *data,
+				void *priv)
+{
+	struct errcount_attribute_data *ead = priv;
+	int i, index = 0;
+
+	for (i = 0; i < ead->n_layers; i++) {
+		if (i < ead->n_layers - 1)
+			index += mci->layers[i + 1].size * ead->pos[i];
+		else
+			index += ead->pos[i];
+	}
+	return sprintf(data, "%u\n",
+		       mci->ue_per_layer[ead->n_layers - 1][index]);
+}
+
+static int edac_create_errcount_layer(struct mem_ctl_info *mci,
+				      struct mcidev_sysfs_attribute **erc,
+				      struct errcount_attribute_data **ercd,
+				      const unsigned layer,
+				      const int count)
+{
+	int err, i, j, pos[EDAC_MAX_LAYERS];
+	char location[80], *p;
+
+	memset(&pos, 0, sizeof(pos));
+	for (i = 0; i < count; i++) {
+		p = location;
+		for (j = 0; j <= layer; j++)
+			p += sprintf(p, "_%s%d",
+				     edac_layer_name[mci->layers[j].type],
+				     pos[j]);
+
+		(*erc)->attr.name = kasprintf(GFP_KERNEL, "ce%s", location);
+		debugf4("%s() creating %s\n", __func__, (*erc)->attr.name);
+		if (!(*erc)->attr.name)
+			return -ENOMEM;
+		(*erc)->attr.mode = S_IRUGO;
+		(*erc)->show = errcount_ce_show;
+		(*erc)->priv = *ercd;
+		(*ercd)->n_layers = layer + 1;
+		memcpy((*ercd)->pos, pos, sizeof(pos));
+		err = sysfs_create_file(&mci->edac_mci_kobj, &(*erc)->attr);
+		if (err < 0) {
+			printk(KERN_ERR "sysfs_create_file failed: %d\n", err);
+			return err;
+		}
+		(*erc)++;
+		(*ercd)++;
+
+		(*erc)->attr.name = kasprintf(GFP_KERNEL, "ue%s", location);
+		debugf4("%s() creating %s\n", __func__, (*erc)->attr.name);
+		if (!(*erc)->attr.name)
+			return -ENOMEM;
+		(*erc)->attr.mode = S_IRUGO | S_IWUSR;
+		(*erc)->show = errcount_ue_show;
+		(*erc)->priv = *ercd;
+		(*ercd)->n_layers = layer + 1;
+		memcpy((*ercd)->pos, pos, sizeof(pos));
+		err = sysfs_create_file(&mci->edac_mci_kobj, &(*erc)->attr);
+		if (err < 0) {
+			printk(KERN_ERR "sysfs_create_file failed: %d\n", err);
+			return err;
+		}
+
+		for (j = layer; j >= 0; j--) {
+			pos[j]++;
+			if (pos[j] < mci->layers[j].size)
+				break;
+			pos[j] = 0;
+		}
+		(*erc)++;
+		(*ercd)++;
+	}
+
+	return 0;
+}
+
+static void edac_remove_errcount(struct mem_ctl_info *mci)
+{
+	struct mcidev_sysfs_attribute *erc = mci->errcount_attr;
+
+	do {
+		if (!(erc->attr.name))
+			return;
+		debugf2("%s() removing %s\n", __func__, erc->attr.name);
+		sysfs_remove_file(&mci->edac_mci_kobj, &erc->attr);
+
+		kfree(erc->attr.name);
+		erc++;
+	} while (1);
+	return;
+}
+
+static int edac_create_errcount_objects(struct mem_ctl_info *mci)
+{
+	struct mcidev_sysfs_attribute *erc = mci->errcount_attr;
+	struct errcount_attribute_data *ercd = mci->errcount_attr_data;
+	int err, i, count;
+
+	count = 1;
+	for (i = 0; i < mci->n_layers; i++) {
+		count *= mci->layers[i].size;
+		err = edac_create_errcount_layer(mci, &erc, &ercd, i, count);
+		if (err < 0)
+			goto err;
+	}
+	debugf2("%s: created %d objects\n", __func__, (unsigned)(erc - mci->errcount_attr));
+	return 0;
+err:
+	edac_remove_errcount(mci);
+	return err;
+}
 
 /*
  * Release of a MC controlling instance
@@ -928,7 +1073,8 @@ static ssize_t inst_grp_show(struct kobject *kobj, struct attribute *attr,
 	debugf1("%s() mem_ctl_info %p\n", __func__, mem_ctl_info);
 
 	if (mcidev_attr->show)
-		return mcidev_attr->show(mem_ctl_info, buffer);
+		return mcidev_attr->show(mem_ctl_info, buffer,
+					 mcidev_attr->priv);
 
 	return -EIO;
 }
@@ -942,7 +1088,8 @@ static ssize_t inst_grp_store(struct kobject *kobj, struct attribute *attr,
 	debugf1("%s() mem_ctl_info %p\n", __func__, mem_ctl_info);
 
 	if (mcidev_attr->store)
-		return mcidev_attr->store(mem_ctl_info, buffer, count);
+		return mcidev_attr->store(mem_ctl_info, buffer, count,
+					  mcidev_attr->priv);
 
 	return -EIO;
 }
@@ -1179,6 +1326,12 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 			goto fail2;
 		}
 	}
+	err = edac_create_errcount_objects(mci);
+	if (err) {
+		debugf1("%s() failure: create error count objects\n",
+			__func__);
+		goto fail2;
+	}
 
 	return 0;
 
@@ -1223,12 +1376,18 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	debugf0("%s()\n", __func__);
 
-	/* remove all csrow kobjects */
-	debugf4("%s()  unregister this mci kobj\n", __func__);
+	edac_remove_errcount(mci);
+
+	/* remove all dimms kobjects */
 	for (i = 0; i < mci->tot_dimms; i++) {
-		debugf0("%s()  unreg dimm-%d\n", __func__, i);
-		kobject_put(&mci->dimms[i].kobj);
+		if (mci->dimms[i].nr_pages) {
+			debugf0("%s()  unreg dimm%d\n", __func__, i);
+			kobject_put(&mci->dimms[i].kobj);
+		}
 	}
+
+	/* remove all csrow kobjects */
+	debugf4("%s()  unregister this mci csrows kobj\n", __func__);
 	for (i = 0; i < mci->num_csrows; i++) {
 		int n = 0;
 

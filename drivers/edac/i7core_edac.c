@@ -689,7 +689,8 @@ static int disable_inject(const struct mem_ctl_info *mci)
  *	bit 1 - refers to the upper 32-byte half cacheline
  */
 static ssize_t i7core_inject_section_store(struct mem_ctl_info *mci,
-					   const char *data, size_t count)
+					   const char *data, size_t count,
+					   void *priv)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	unsigned long value;
@@ -707,7 +708,7 @@ static ssize_t i7core_inject_section_store(struct mem_ctl_info *mci,
 }
 
 static ssize_t i7core_inject_section_show(struct mem_ctl_info *mci,
-					      char *data)
+					      char *data, void *priv)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	return sprintf(data, "0x%08x\n", pvt->inject.section);
@@ -722,7 +723,8 @@ static ssize_t i7core_inject_section_show(struct mem_ctl_info *mci,
  *	bit 2 - inject parity error
  */
 static ssize_t i7core_inject_type_store(struct mem_ctl_info *mci,
-					const char *data, size_t count)
+					const char *data, size_t count,
+					void *priv)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	unsigned long value;
@@ -740,7 +742,7 @@ static ssize_t i7core_inject_type_store(struct mem_ctl_info *mci,
 }
 
 static ssize_t i7core_inject_type_show(struct mem_ctl_info *mci,
-					      char *data)
+					      char *data, void *priv)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	return sprintf(data, "0x%08x\n", pvt->inject.type);
@@ -757,7 +759,8 @@ static ssize_t i7core_inject_type_show(struct mem_ctl_info *mci,
  *   uncorrectable error to be injected.
  */
 static ssize_t i7core_inject_eccmask_store(struct mem_ctl_info *mci,
-					const char *data, size_t count)
+					const char *data, size_t count,
+					void *priv)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	unsigned long value;
@@ -775,7 +778,7 @@ static ssize_t i7core_inject_eccmask_store(struct mem_ctl_info *mci,
 }
 
 static ssize_t i7core_inject_eccmask_show(struct mem_ctl_info *mci,
-					      char *data)
+					      char *data, void *priv)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	return sprintf(data, "0x%08x\n", pvt->inject.eccmask);
@@ -795,7 +798,7 @@ static ssize_t i7core_inject_eccmask_show(struct mem_ctl_info *mci,
 #define DECLARE_ADDR_MATCH(param, limit)			\
 static ssize_t i7core_inject_store_##param(			\
 		struct mem_ctl_info *mci,			\
-		const char *data, size_t count)			\
+		const char *data, size_t count, void *priv)	\
 {								\
 	struct i7core_pvt *pvt;					\
 	long value;						\
@@ -822,7 +825,7 @@ static ssize_t i7core_inject_store_##param(			\
 								\
 static ssize_t i7core_inject_show_##param(			\
 		struct mem_ctl_info *mci,			\
-		char *data)					\
+		char *data, void *priv)				\
 {								\
 	struct i7core_pvt *pvt;					\
 								\
@@ -897,7 +900,8 @@ static int write_and_test(struct pci_dev *dev, const int where, const u32 val)
  *    three channels. However, this is not clear at the datasheet.
  */
 static ssize_t i7core_inject_enable_store(struct mem_ctl_info *mci,
-				       const char *data, size_t count)
+					  const char *data, size_t count,
+					  void *priv)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	u32 injectmask;
@@ -1000,7 +1004,7 @@ static ssize_t i7core_inject_enable_store(struct mem_ctl_info *mci,
 }
 
 static ssize_t i7core_inject_enable_show(struct mem_ctl_info *mci,
-					char *data)
+					char *data, void *priv)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
 	u32 injectmask;
@@ -1022,7 +1026,7 @@ static ssize_t i7core_inject_enable_show(struct mem_ctl_info *mci,
 #define DECLARE_COUNTER(param)					\
 static ssize_t i7core_show_counter_##param(			\
 		struct mem_ctl_info *mci,			\
-		char *data)					\
+		char *data, void *priv)			\
 {								\
 	struct i7core_pvt *pvt = mci->pvt_info;			\
 								\
