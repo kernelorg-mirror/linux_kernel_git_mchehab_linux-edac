@@ -866,7 +866,7 @@ static ssize_t errcount_ce_show(struct mem_ctl_info *mci, char *data,
 	struct errcount_attribute_data *ead = priv;
 	int i, index = 0;
 
-	for (i = 0; i < mci->n_layers - 1; i++) {
+	for (i = 0; i < ead->n_layers - 1; i++) {
 		index += ead->pos[i];
 		index *= mci->layers[i].size;
 	}
@@ -881,7 +881,8 @@ static ssize_t errcount_ue_show(struct mem_ctl_info *mci, char *data,
 	struct errcount_attribute_data *ead = priv;
 	int i, index = 0;
 
-	for (i = 0; i < mci->n_layers - 1; i++) {
+
+	for (i = 0; i < ead->n_layers - 1; i++) {
 		index += ead->pos[i];
 		index *= mci->layers[i].size;
 	}
@@ -921,6 +922,8 @@ static int edac_create_errcount_layer(struct mem_ctl_info *mci,
 			printk(KERN_ERR "sysfs_create_file failed: %d\n", err);
 			return err;
 		}
+		(*erc)++;
+		(*ercd)++;
 
 		(*erc)->attr.name = kasprintf(GFP_KERNEL, "ue%s", location);
 		debugf4("%s() creating %s\n", __func__, (*erc)->attr.name);
@@ -972,7 +975,7 @@ static int edac_create_errcount_objects(struct mem_ctl_info *mci)
 	int err, i, count;
 
 	count = 1;
-	for (i = 0; i < mci->n_layers - 1; i++) {
+	for (i = 0; i < mci->n_layers; i++) {
 		count *= mci->layers[i].size;
 		err = edac_create_errcount_layer(mci, &erc, &ercd, i, count);
 		if (err < 0)

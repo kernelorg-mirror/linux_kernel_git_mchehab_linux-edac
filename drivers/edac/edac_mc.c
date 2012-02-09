@@ -249,12 +249,8 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 		count *= layers[i].size;
 		ce_per_layer[i] = edac_align_ptr(&ptr, sizeof(unsigned), count);
 		ue_per_layer[i] = edac_align_ptr(&ptr, sizeof(unsigned), count);
-		if (i < n_layers - 1)
-			tot_errcount += 2 * count;
+		tot_errcount += 2 * count;
 	}
-	/*
-	 * The last error count is equal to DIMM. So, don't export it twice
-	 */
 	erc = edac_align_ptr(&ptr, sizeof(*erc), tot_errcount);
 	ercd = edac_align_ptr(&ptr, sizeof(*ercd), tot_errcount);
 	pvt = edac_align_ptr(&ptr, sz_pvt, 1);
