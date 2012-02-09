@@ -1013,23 +1013,22 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			 * get csrow/channel of the dimm, in order to allow
 			 * incrementing the compat API counters
 			 */
-			if (mci->layers[i].is_csrow) {
-				if (row == -1)
-					row = dimm->csrow;
-				else if (row >= 0 && row != dimm->csrow)
-					row = -2;
-			} else {
-				if (chan == -1)
-					chan = dimm->cschannel;
-				else if (chan >= 0 && chan != dimm->cschannel)
-					chan = -2;
-			}
+			debugf4("%s: dimm csrows (%d,%d)\n",
+				__func__, dimm->csrow, dimm->cschannel);
+			if (row == -1)
+				row = dimm->csrow;
+			else if (row >= 0 && row != dimm->csrow)
+				row = -2;
+			if (chan == -1)
+				chan = dimm->cschannel;
+			else if (chan >= 0 && chan != dimm->cschannel)
+				chan = -2;
 		}
 	}
 	if (!enable_filter) {
 		strcpy(label, "any memory");
 	} else {
-		debugf4("%s: incrementing csrows (%d,%d)\n",
+		debugf4("%s: csrow/channel to increment: (%d,%d)\n",
 			__func__, row, chan);
 		if (type == HW_EVENT_ERR_CORRECTED) {
 			if (row >= 0) {
