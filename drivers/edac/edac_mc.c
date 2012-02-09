@@ -202,10 +202,10 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	struct rank_info *chi, *chp, *chan;
 	struct dimm_info *dimm;
 	u32 *ce_per_layer[EDAC_MAX_LAYERS], *ue_per_layer[EDAC_MAX_LAYERS];
-	void *pvt;
+	void *pvt, *p;
 	unsigned size, tot_dimms, count, pos[EDAC_MAX_LAYERS];
 	unsigned tot_csrows, tot_cschannels;
-	int i, j;
+	int i, j, n, len;
 	int err;
 	int row, chn;
 
@@ -311,9 +311,22 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 			i, (dimm - mci->dimms),
 			pos[0], pos[1], pos[2], row, chn);
 
-		/* Copy DIMM location */
-		for (j = 0; j < n_layers; j++)
+		/*
+		 * Copy DIMM location and initialize the memory location
+		 */
+		len = sizeof(dimm->label);
+		p = dimm->label;
+		n = snprintf(p, len, "mc#%u", edac_index);
+		p += n;
+		len -= n;
+		for (j = 0; j < n_layers; j++) {
+			n = snprintf(p, len, "%s#%u",
+				     edac_layer_name[layers[j].type],
+				     pos[j]);
+			p += n;
+			len -= n;
 			dimm->location[j] = pos[j];
+		}
 
 		/* Link it to the csrows old API data */
 		chan->dimm = dimm;
