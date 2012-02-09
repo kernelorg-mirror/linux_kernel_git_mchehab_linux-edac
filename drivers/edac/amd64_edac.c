@@ -1904,7 +1904,7 @@ static void amd64_handle_ce(struct mem_ctl_info *mci, struct mce *m)
 				     -1, -1, -1,
 				     EDAC_MOD_STR,
 				     "HW has no ERROR_ADDRESS available",
-				     NULL);
+				     m);
 		return;
 	}
 
@@ -1933,7 +1933,7 @@ static void amd64_handle_ue(struct mem_ctl_info *mci, struct mce *m)
 				     -1, -1, -1,
 				     EDAC_MOD_STR,
 				     "HW has no ERROR_ADDRESS available",
-				     NULL);
+				     m);
 		return;
 	}
 
@@ -1952,7 +1952,7 @@ static void amd64_handle_ue(struct mem_ctl_info *mci, struct mce *m)
 				     page, offset, 0,
 				     -1, -1, -1,
 				     EDAC_MOD_STR,
-				     "ERROR ADDRESS NOT mapped to a MC", NULL);
+				     "ERROR ADDRESS NOT mapped to a MC", m);
 		return;
 	}
 
@@ -1967,12 +1967,12 @@ static void amd64_handle_ue(struct mem_ctl_info *mci, struct mce *m)
 				     -1, -1, -1,
 				     EDAC_MOD_STR,
 				     "ERROR ADDRESS NOT mapped to CS",
-				     NULL);
+				     m);
 	} else {
 		edac_mc_handle_error(HW_EVENT_ERR_UNCORRECTED, mci,
 				     page, offset, 0,
 				     csrow, -1, -1,
-				     EDAC_MOD_STR, "", NULL);
+				     EDAC_MOD_STR, "", m);
 	}
 }
 
