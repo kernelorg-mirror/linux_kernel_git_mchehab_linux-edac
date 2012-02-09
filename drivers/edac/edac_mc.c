@@ -930,7 +930,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			 */
 			pos[i] = -1;
 		}
-		if (pos[i] > 0)
+		if (pos[i] >= 0)
 			enable_filter = true;
 	}
 
