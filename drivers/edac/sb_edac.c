@@ -1433,23 +1433,22 @@ static void sbridge_mce_output_error(struct mem_ctl_info *mci,
 		recoverable_msg = "";
 
 	/*
-	 * FIXME: What should we do with "channel" information on mcelog?
-	 * Probably, we can just discard it, as the channel information
-	 * comes from the get_memory_error_data() address decoding
+	 * FIXME: On some memory configurations (mirror, lockstep), the
+	 * Memory Controller can't point the error to a single DIMM. The
+	 * EDAC core should be handling the channel mask, in order to point
+	 * to the group of dimm's where the error may be happening.
 	 */
 	snprintf(msg, sizeof(msg),
-			"%d error(s)%s: %s%s: cpu=%d Err=%04x:%04x addr = 0x%08llx socket=%d Channel=%ld(mask=%ld), rank=%d\n",
-			core_err_cnt,
-			overflow ? " OVERFLOW" : "",
-			area_type,
-			recoverable_msg,
-			m->cpu,
-			mscod, errcode,
-			(long long) m->addr,
-			socket,
-			first_channel,		/* This is the real channel on SB */
-			channel_mask,
-			rank);
+		 "%d error(s)%s: %s%s: Err=%04x:%04x socket=%d channel=%ld/mask=%ld rank=%d",
+		 core_err_cnt,
+		 overflow ? " OVERFLOW" : "",
+		 area_type,
+		 recoverable_msg,
+		 mscod, errcode,
+		 socket,
+		 first_channel,
+		 channel_mask,
+		 rank);
 
 	debugf0("%s", msg);
 
