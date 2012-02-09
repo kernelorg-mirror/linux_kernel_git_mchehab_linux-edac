@@ -899,7 +899,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			  const int layer2,
 			  const char *msg,
 			  const char *other_detail,
-			  const void *mcelog)
+			  const void *arch_log)
 {
 	unsigned long remapped_page;
 	/* FIXME: too much for stack: move it to some pre-alocated area */
@@ -924,9 +924,23 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 				p = "UE";
 				mci->ue_mc++;
 			}
+#ifdef CONFIG_X86
+			if (arch_log)
+				trace_mc_out_of_range_mce(mci, p,
+							  edac_layer_name[mci->layers[i].type],
+							  pos[i], 0,
+							  mci->layers[i].size,
+							  arch_log);
+			else
+				trace_mc_out_of_range(mci, p,
+						      edac_layer_name[mci->layers[i].type],
+						      pos[i], 0,
+						      mci->layers[i].size);
+#else
 			trace_mc_out_of_range(mci, p,
 					edac_layer_name[mci->layers[i].type],
 					pos[i], 0, mci->layers[i].size);
+#endif
 			edac_mc_printk(mci, KERN_ERR,
 				       "INTERNAL ERROR: %s value is out of range (%d >= %d)\n",
 				       edac_layer_name[mci->layers[i].type],
@@ -1033,8 +1047,17 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			"page 0x%lx offset 0x%lx grain %d\n",
 			page_frame_number, offset_in_page, grain);
 
+#ifdef CONFIG_X86
+	if (arch_log)
+		trace_mc_error_mce(type, mci->mc_idx, msg, label, location,
+				   detail, other_detail, arch_log);
+	else
+		trace_mc_error(type, mci->mc_idx, msg, label, location,
+			       detail, other_detail);
+#else
 	trace_mc_error(type, mci->mc_idx, msg, label, location,
 		       detail, other_detail);
+#endif
 
 	if (type == HW_EVENT_ERR_CORRECTED) {
 		if (edac_mc_get_log_ce())

@@ -53,7 +53,7 @@ static DEFINE_MUTEX(mce_chrdev_read_mutex);
 			      lockdep_is_held(&mce_chrdev_read_mutex))
 
 #define CREATE_TRACE_POINTS
-#include <trace/events/mce.h>
+#include <trace/events/hw_event.h>
 
 int mce_disabled __read_mostly;
 
