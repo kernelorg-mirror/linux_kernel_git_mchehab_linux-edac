@@ -1029,11 +1029,14 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	if (!enable_filter) {
 		strcpy(label, "any memory");
 	} else {
+		debugf4("%s: incrementing csrows (%d,%d)\n",
+			__func__, row, chan);
 		if (type == HW_EVENT_ERR_CORRECTED) {
-			if (row >= 0)
+			if (row >= 0) {
 				mci->csrows[row].ce_count++;
-			if (chan >= 0)
-				mci->csrows[row].channels[chan].ce_count++;
+				if (chan >= 0)
+					mci->csrows[row].channels[chan].ce_count++;
+			}
 		} else
 			if (row >= 0)
 				mci->csrows[row].ue_count++;
