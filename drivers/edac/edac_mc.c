@@ -916,7 +916,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 
 	/* Check if the event report is consistent */
 	for (i = 0; i < mci->n_layers; i++) {
-		if (pos[i] >= mci->layers[i].size) {
+		if (pos[i] >= (int)mci->layers[i].size) {
 			if (type == HW_EVENT_ERR_CORRECTED) {
 				p = "CE";
 				mci->ce_mc++;
@@ -1014,7 +1014,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 		}
 	}
 	if (!enable_filter) {
-		p = "any memory";
+		strcpy(label, "any memory");
 	} else {
 		if (type == HW_EVENT_ERR_CORRECTED) {
 			if (row >= 0)
@@ -1039,12 +1039,12 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	/* Memory type dependent details about the error */
 	if (type == HW_EVENT_ERR_CORRECTED)
 		snprintf(detail, sizeof(detail),
-			"page 0x%lx offset 0x%lx grain %d syndrome 0x%lx\n",
+			"page 0x%lx offset 0x%lx grain %d syndrome 0x%lx",
 			page_frame_number, offset_in_page,
 			grain, syndrome);
 	else
 		snprintf(detail, sizeof(detail),
-			"page 0x%lx offset 0x%lx grain %d\n",
+			"page 0x%lx offset 0x%lx grain %d",
 			page_frame_number, offset_in_page, grain);
 
 #ifdef CONFIG_X86
@@ -1062,7 +1062,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	if (type == HW_EVENT_ERR_CORRECTED) {
 		if (edac_mc_get_log_ce())
 			edac_mc_printk(mci, KERN_WARNING,
-				       "CE %s label \"%s\" (%s %s %s)\n",
+				       "CE %s on %s (%s%s %s)\n",
 				       msg, label, location,
 				       detail, other_detail);
 		edac_increment_ce_error(mci,enable_filter, pos);
@@ -1089,11 +1089,11 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	} else {
 		if (edac_mc_get_log_ue())
 			edac_mc_printk(mci, KERN_WARNING,
-				"UE %s label \"%s\" (%s %s %s)\n",
+				"UE %s on %s (%s%s %s)\n",
 				msg, label, location, detail, other_detail);
 
 		if (edac_mc_get_panic_on_ue())
-			panic("UE %s label \"%s\" (%s %s %s)\n",
+			panic("UE %s on %s (%s%s %s)\n",
 			      msg, label, location, detail, other_detail);
 
 		edac_increment_ue_error(mci,enable_filter, pos);
