@@ -764,6 +764,42 @@ static ssize_t mci_max_location_show(struct mem_ctl_info *mci, char *data,
 	return p - data;
 }
 
+#ifdef CONFIG_EDAC_DEBUG
+static ssize_t edac_fake_inject_show(struct mem_ctl_info *mci,
+				     char *data, void *priv)
+{
+	return sprintf(data,
+		       "EDAC fake test engine. Writing to this node a value in the form of :\n"
+		       "\t0:1:0\n"
+		       "will call the EDAC core routine to produce a memory error for the given memory location (0, 1, 0).\n"
+		       "The driver's error parsing logic won't be tested. This tool is useful only\n"
+		       "if you're testing the EDAC core tracing facility, or if you're needing to test\n"
+		       "some userspace application.\n");
+}
+
+static ssize_t edac_fake_inject_store(struct mem_ctl_info *mci,
+				      const char *data, size_t count,
+				      void *priv)
+{
+	static enum hw_event_mc_err_type type = HW_EVENT_ERR_CORRECTED;
+	int err, layer0 = -1, layer1 = -1, layer2 = -1;
+	err = sscanf(data, "%i:%i:%i", &layer0, &layer1, &layer2);
+	if (err < 0)
+		return err;
+
+	printk(KERN_DEBUG
+	       "Generating a fake error to %d.%d.%d to test core handling. NOTE: this won't test the driver-specific decoding logic.\n",
+	       layer0, layer1, layer2);
+	edac_mc_handle_error(type, mci, 0, 0, 0,
+			     layer0, layer1, layer2,
+			     "FAKE ERROR", "for EDAC testing only", NULL);
+	if (++type == HW_EVENT_ERR_FATAL)
+		type = HW_EVENT_ERR_CORRECTED;
+
+	return count;
+}
+#endif
+
 #define to_mci(k) container_of(k, struct mem_ctl_info, edac_mci_kobj)
 #define to_mcidev_attr(a) container_of(a,struct mcidev_sysfs_attribute,attr)
 
@@ -1388,6 +1424,18 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 			__func__);
 		goto fail2;
 	}
+#ifdef CONFIG_EDAC_DEBUG
+	mci->errinject_attr.attr.name = "fake_inject";
+	mci->errinject_attr.attr.mode = S_IRUGO | S_IWUSR;
+	mci->errinject_attr.show = edac_fake_inject_show;
+	mci->errinject_attr.store = edac_fake_inject_store;
+	err = sysfs_create_file(&mci->edac_mci_kobj, &mci->errinject_attr.attr);
+	if (err < 0) {
+		printk(KERN_ERR
+		       "sysfs_create_file for fake inject failed: %d\n", err);
+		mci->errinject_attr.attr.name = NULL;
+	}
+#endif
 
 	return 0;
 
@@ -1432,6 +1480,11 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	debugf0("%s()\n", __func__);
 
+#ifdef CONFIG_EDAC_DEBUG
+	if (mci->errinject_attr.attr.name)
+		sysfs_remove_file(&mci->edac_mci_kobj,
+				  &mci->errinject_attr.attr);
+#endif
 	edac_remove_errcount(mci);
 
 	/* remove all dimms kobjects */

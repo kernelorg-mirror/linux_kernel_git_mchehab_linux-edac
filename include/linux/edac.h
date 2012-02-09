@@ -618,6 +618,10 @@ struct mem_ctl_info {
 	struct mcidev_sysfs_attribute *errcount_attr;
 	struct errcount_attribute_data *errcount_attr_data;
 
+#ifdef CONFIG_EDAC_DEBUG
+	struct mcidev_sysfs_attribute errinject_attr;
+#endif
+
 	struct completion complete;
 
 	/* edac sysfs device control */
