@@ -628,8 +628,8 @@ static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
 	cnt = 1;
 	for (i = 0; i < mci->n_layers; i++) {
 		cnt *= mci->layers[i].size;
-		memset(mci->ce_per_layer[i], 0, cnt);
-		memset(mci->ue_per_layer[i], 0, cnt);
+		memset(mci->ce_per_layer[i], 0, cnt * sizeof(u32));
+		memset(mci->ue_per_layer[i], 0, cnt * sizeof(u32));
 	}
 
 	mci->start_time = jiffies;
@@ -866,11 +866,12 @@ static ssize_t errcount_ce_show(struct mem_ctl_info *mci, char *data,
 	struct errcount_attribute_data *ead = priv;
 	int i, index = 0;
 
-	for (i = 0; i < ead->n_layers - 1; i++) {
-		index += ead->pos[i];
-		index *= mci->layers[i].size;
+	for (i = 0; i < ead->n_layers; i++) {
+		if (i < ead->n_layers - 1)
+			index += mci->layers[i + 1].size * ead->pos[i];
+		else
+			index += ead->pos[i];
 	}
-	index += ead->pos[i];
 	return sprintf(data, "%u\n",
 		       mci->ce_per_layer[ead->n_layers - 1][index]);
 }
@@ -881,12 +882,12 @@ static ssize_t errcount_ue_show(struct mem_ctl_info *mci, char *data,
 	struct errcount_attribute_data *ead = priv;
 	int i, index = 0;
 
-
-	for (i = 0; i < ead->n_layers - 1; i++) {
-		index += ead->pos[i];
-		index *= mci->layers[i].size;
+	for (i = 0; i < ead->n_layers; i++) {
+		if (i < ead->n_layers - 1)
+			index += mci->layers[i + 1].size * ead->pos[i];
+		else
+			index += ead->pos[i];
 	}
-	index += ead->pos[i];
 	return sprintf(data, "%u\n",
 		       mci->ue_per_layer[ead->n_layers - 1][index]);
 }
@@ -949,6 +950,7 @@ static int edac_create_errcount_layer(struct mem_ctl_info *mci,
 		(*erc)++;
 		(*ercd)++;
 	}
+
 	return 0;
 }
 
@@ -981,6 +983,7 @@ static int edac_create_errcount_objects(struct mem_ctl_info *mci)
 		if (err < 0)
 			goto err;
 	}
+	debugf4("%s: created %d objects\n", __func__, (unsigned)(erc - mci->errcount_attr));
 	return 0;
 err:
 	edac_remove_errcount(mci);

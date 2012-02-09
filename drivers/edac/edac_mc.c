@@ -244,10 +244,13 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	count = 1;
 	for (i = 0; i < n_layers; i++) {
 		count *= layers[i].size;
-		ce_per_layer[i] = edac_align_ptr(&ptr, sizeof(unsigned), count);
-		ue_per_layer[i] = edac_align_ptr(&ptr, sizeof(unsigned), count);
+		debugf4("%s: errcount layer %d size %d\n", __func__, i, count);
+		ce_per_layer[i] = edac_align_ptr(&ptr, sizeof(u32), count);
+		ue_per_layer[i] = edac_align_ptr(&ptr, sizeof(u32), count);
 		tot_errcount += 2 * count;
 	}
+
+	debugf4("%s: allocating %d error counters\n", __func__, tot_errcount);
 	erc = edac_align_ptr(&ptr, sizeof(*erc), tot_errcount);
 	ercd = edac_align_ptr(&ptr, sizeof(*ercd), tot_errcount);
 	pvt = edac_align_ptr(&ptr, sz_pvt, 1);
@@ -866,7 +869,9 @@ static void edac_increment_ce_error(struct mem_ctl_info *mci,
 			break;
 		index += pos[i];
 		mci->ce_per_layer[i][index]++;
-		index *= mci->layers[i].size;
+
+		if (i < mci->n_layers - 1)
+			index *= mci->layers[i + 1].size;
 	}
 }
 
@@ -888,7 +893,9 @@ static void edac_increment_ue_error(struct mem_ctl_info *mci,
 			break;
 		index += pos[i];
 		mci->ue_per_layer[i][index]++;
-		index *= mci->layers[i].size;
+
+		if (i < mci->n_layers - 1)
+			index *= mci->layers[i + 1].size;
 	}
 }
 
@@ -906,9 +913,8 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 {
 	unsigned long remapped_page;
 	/* FIXME: too much for stack: move it to some pre-alocated area */
-	char detail[80 + strlen(other_detail)];
+	char detail[80], location[80];
 	char label[(EDAC_MC_LABEL_LEN + 2) * mci->tot_dimms], *p;
-	char location[80];
 	int row = -1, chan = -1;
 	int pos[EDAC_MAX_LAYERS] = { layer0, layer1, layer2 };
 	int i;
@@ -978,8 +984,9 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 		 */
 		if (enable_filter) {
 			strcpy(p, dimm->label);
-			p[strlen(p)] = ' ';
 			p = p + strlen(p);
+			*p = ' ';
+			p++;
 			*p = '\0';
 
 			/*
