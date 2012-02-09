@@ -573,8 +573,6 @@ struct mem_ctl_info {
 	const char *dev_name;
 	char proc_name[MC_PROC_NAME_MAX_LEN + 1];
 	void *pvt_info;
-	u32 ue_count;           /* Total Uncorrectable Errors for this MC */
-	u32 ce_count;           /* Total Correctable Errors for this MC */
 	unsigned long start_time;	/* mci load start time (in jiffies) */
 
 	/* drivers shouldn't access this struct directly */
