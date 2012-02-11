@@ -18,6 +18,10 @@
  * Intel 5400 Chipset Memory Controller Hub (MCH) - Datasheet
  * 	http://developer.intel.com/design/chipsets/datashts/313070.htm
  *
+ * This Memory Controller manages DDR2 FB-DIMMs. It has 2 branches, each with
+ * 2 channels operating in lockstep no-mirror mode. Each channel can have up to
+ * 4 dimm's, each with up to 8GB.
+ *
  */
 
 #include <linux/module.h>
@@ -48,8 +52,6 @@
 #define CHANNELS_PER_BRANCH	2
 #define MAX_DIMMS_PER_CHANNEL	NUM_MTRS_PER_BRANCH
 #define	MAX_CHANNELS		4
-/* max possible csrows per channel */
-#define MAX_CSROWS		(MAX_DIMMS_PER_CHANNEL)
 
 /* Device 16,
  * Function 0: System Address
@@ -356,7 +358,7 @@ struct i5400_pvt {
 	u16 b1_ambpresent1;			/* Branch 1, Channel 1 */
 
 	/* DIMM information matrix, allocating architecture maximums */
-	struct i5400_dimm_info dimm_info[MAX_CSROWS][MAX_CHANNELS];
+	struct i5400_dimm_info dimm_info[MAX_DIMMS_PER_CHANNEL][MAX_CHANNELS];
 
 	/* Actual values for this controller */
 	int maxch;				/* Max channels */
@@ -558,7 +560,7 @@ static void i5400_proccess_non_recoverable_info(struct mem_ctl_info *mci,
 	ras = nrec_ras(info);
 	cas = nrec_cas(info);
 
-	debugf0("\t\tCSROW= %d  Channels= %d,%d  (Branch= %d "
+	debugf0("\t\tDIMM= %d  Channels= %d,%d  (Branch= %d "
 		"DRAM Bank= %d Buffer ID = %d rdwr= %s ras= %d cas= %d)\n",
 		rank, channel, channel + 1, branch >> 1, bank,
 		buf_id, rdwr_str(rdwr), ras, cas);
@@ -632,7 +634,7 @@ static void i5400_process_nonfatal_error_info(struct mem_ctl_info *mci,
 		/* Only 1 bit will be on */
 		errnum = find_first_bit(&allErrors, ARRAY_SIZE(error_name));
 
-		debugf0("\t\tCSROW= %d Channel= %d  (Branch %d "
+		debugf0("\t\tDIMM= %d Channel= %d  (Branch %d "
 			"DRAM Bank= %d rdwr= %s ras= %d cas= %d)\n",
 			rank, channel, branch >> 1, bank,
 			rdwr_str(rdwr), ras, cas);
@@ -843,11 +845,11 @@ static int determine_amb_present_reg(struct i5400_pvt *pvt, int channel)
 }
 
 /*
- * determine_mtr(pvt, csrow, channel)
+ * determine_mtr(pvt, dimm, channel)
  *
- * return the proper MTR register as determine by the csrow and desired channel
+ * return the proper MTR register as determine by the dimm and desired channel
  */
-static int determine_mtr(struct i5400_pvt *pvt, int csrow, int channel)
+static int determine_mtr(struct i5400_pvt *pvt, int dimm, int channel)
 {
 	int mtr;
 	int n;
@@ -855,11 +857,11 @@ static int determine_mtr(struct i5400_pvt *pvt, int csrow, int channel)
 	/* There is one MTR for each slot pair of FB-DIMMs,
 	   Each slot pair may be at branch 0 or branch 1.
 	 */
-	n = csrow;
+	n = dimm;
 
 	if (n >= NUM_MTRS_PER_BRANCH) {
-		debugf0("ERROR: trying to access an invalid csrow: %d\n",
-			csrow);
+		debugf0("ERROR: trying to access an invalid dimm: %d\n",
+			dimm);
 		return 0;
 	}
 
@@ -895,19 +897,19 @@ static void decode_mtr(int slot_row, u16 mtr)
 	debugf2("\t\tNUMCOL: %s\n", numcol_toString[MTR_DIMM_COLS(mtr)]);
 }
 
-static void handle_channel(struct i5400_pvt *pvt, int csrow, int channel,
+static void handle_channel(struct i5400_pvt *pvt, int dimm, int channel,
 			struct i5400_dimm_info *dinfo)
 {
 	int mtr;
 	int amb_present_reg;
 	int addrBits;
 
-	mtr = determine_mtr(pvt, csrow, channel);
+	mtr = determine_mtr(pvt, dimm, channel);
 	if (MTR_DIMMS_PRESENT(mtr)) {
 		amb_present_reg = determine_amb_present_reg(pvt, channel);
 
 		/* Determine if there is a DIMM present in this DIMM slot */
-		if (amb_present_reg & (1 << csrow)) {
+		if (amb_present_reg & (1 << dimm)) {
 			/* Start with the number of bits for a Bank
 			 * on the DRAM */
 			addrBits = MTR_DRAM_BANKS_ADDR_BITS(mtr);
@@ -936,7 +938,7 @@ static void handle_channel(struct i5400_pvt *pvt, int csrow, int channel,
 static void calculate_dimm_size(struct i5400_pvt *pvt)
 {
 	struct i5400_dimm_info *dinfo;
-	int csrow, max_csrows;
+	int dimm, max_dimms;
 	char *p, *mem_buffer;
 	int space, n;
 	int channel;
@@ -950,32 +952,32 @@ static void calculate_dimm_size(struct i5400_pvt *pvt)
 		return;
 	}
 
-	/* Scan all the actual CSROWS
+	/* Scan all the actual DIMMS
 	 * and calculate the information for each DIMM
-	 * Start with the highest csrow first, to display it first
-	 * and work toward the 0th csrow
+	 * Start with the highest dimm first, to display it first
+	 * and work toward the 0th dimm
 	 */
-	max_csrows = pvt->maxdimmperch;
-	for (csrow = max_csrows - 1; csrow >= 0; csrow--) {
+	max_dimms = pvt->maxdimmperch;
+	for (dimm = max_dimms - 1; dimm >= 0; dimm--) {
 
-		/* on an odd csrow, first output a 'boundary' marker,
+		/* on an odd dimm, first output a 'boundary' marker,
 		 * then reset the message buffer  */
-		if (csrow & 0x1) {
+		if (dimm & 0x1) {
 			n = snprintf(p, space, "---------------------------"
-					"--------------------------------");
+					"-------------------------------");
 			p += n;
 			space -= n;
 			debugf2("%s\n", mem_buffer);
 			p = mem_buffer;
 			space = PAGE_SIZE;
 		}
-		n = snprintf(p, space, "csrow %2d    ", csrow);
+		n = snprintf(p, space, "dimm %2d    ", dimm);
 		p += n;
 		space -= n;
 
 		for (channel = 0; channel < pvt->maxch; channel++) {
-			dinfo = &pvt->dimm_info[csrow][channel];
-			handle_channel(pvt, csrow, channel, dinfo);
+			dinfo = &pvt->dimm_info[dimm][channel];
+			handle_channel(pvt, dimm, channel, dinfo);
 			n = snprintf(p, space, "%4d MB   | ", dinfo->megabytes);
 			p += n;
 			space -= n;
@@ -987,7 +989,7 @@ static void calculate_dimm_size(struct i5400_pvt *pvt)
 
 	/* Output the last bottom 'boundary' marker */
 	n = snprintf(p, space, "---------------------------"
-			"--------------------------------");
+			"-------------------------------");
 	p += n;
 	space -= n;
 	debugf2("%s\n", mem_buffer);
@@ -995,7 +997,7 @@ static void calculate_dimm_size(struct i5400_pvt *pvt)
 	space = PAGE_SIZE;
 
 	/* now output the 'channel' labels */
-	n = snprintf(p, space, "            ");
+	n = snprintf(p, space, "           ");
 	p += n;
 	space -= n;
 	for (channel = 0; channel < pvt->maxch; channel++) {
@@ -1123,7 +1125,7 @@ static void i5400_get_mc_regs(struct mem_ctl_info *mci)
 }
 
 /*
- *	i5400_init_csrows	Initialize the 'csrows' table within
+ *	i5400_init_dimms	Initialize the 'dimms' table within
  *				the mci control	structure with the
  *				addressing of memory.
  *
@@ -1131,46 +1133,61 @@ static void i5400_get_mc_regs(struct mem_ctl_info *mci)
  *		0	success
  *		1	no actual memory found on this MC
  */
-static int i5400_init_csrows(struct mem_ctl_info *mci)
+static int i5400_init_dimms(struct mem_ctl_info *mci)
 {
 	struct i5400_pvt *pvt;
-	int empty, channel_count;
-	int max_csrows;
+	struct dimm_info *dimm;
+	int ndimms, channel_count;
+	int max_dimms;
 	int mtr;
 	int size_mb;
-	int channel;
-	int slot;
+	int  channel, slot;
 
 	pvt = mci->pvt_info;
 
 	channel_count = pvt->maxch;
-	max_csrows = pvt->maxdimmperch;
+	max_dimms = pvt->maxdimmperch;
 
-	empty = 1;		/* Assume NO memory */
+	ndimms = 0;
 
-	for (slot = 0; slot < mci->tot_dimms; slot++) {
-		struct dimm_info *dimm = &mci->dimms[slot];
-		channel = slot % pvt->maxch;
+	dimm = &mci->dimms[0];
+	/*
+	 * FIXME: remove  pvt->dimm_info[slot][channel] and use the 3
+	 * layers here.
+	 */
+	for (channel = 0; channel < mci->layers[0].size * mci->layers[1].size;
+	     channel++) {
+		for (slot = 0; slot < mci->layers[2].size; slot++, dimm++) {
+			mtr = determine_mtr(pvt, slot, channel);
 
-		/* use branch 0 for the basis */
-		mtr = determine_mtr(pvt, slot, 0);
+			/* if no DIMMS on this slot, continue */
+			if (!MTR_DIMMS_PRESENT(mtr))
+				continue;
 
-		/* if no DIMMS on this row, continue */
-		if (!MTR_DIMMS_PRESENT(mtr))
-			continue;
+			size_mb =  pvt->dimm_info[slot][channel].megabytes;
 
-		size_mb =  pvt->dimm_info[slot / pvt->maxch][channel].megabytes;
-
-		dimm->nr_pages = size_mb << 8;
-		dimm->grain = 8;
-		dimm->dtype = MTR_DRAM_WIDTH(mtr) ? DEV_X8 : DEV_X4;
-		dimm->mtype = MEM_RDDR2;
-		dimm->edac_mode = EDAC_SECDED;
-
-		empty = 0;
+			dimm->nr_pages = size_mb << 8;
+			dimm->grain = 8;
+			dimm->dtype = MTR_DRAM_WIDTH(mtr) ? DEV_X8 : DEV_X4;
+			dimm->mtype = MEM_FB_DDR2;
+			/*
+			 * The eccc mechanism is SDDC (aka SECC), with
+			 * is similar to Chipkill.
+			 */
+			dimm->edac_mode = MTR_DRAM_WIDTH(mtr) ?
+					  EDAC_S8ECD8ED : EDAC_S4ECD4ED;
+			ndimms++;
+		}
 	}
 
-	return empty;
+	/*
+	 * When just one memory is provided, it should be at location (0,0,0).
+	 * With such single-DIMM mode, the SDCC algorithm degrades to SECDEC+.
+	 */
+	if (ndimms == 1)
+		mci->dimms[0].edac_mode = EDAC_SECDED;
+
+	return (ndimms == 0);
 }
 
 /*
@@ -1220,12 +1237,16 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 	if (PCI_FUNC(pdev->devfn) != 0)
 		return -ENODEV;
 
-	/* allocate a new MC control structure */
+	/*
+	 * allocate a new MC control structure
+	 *
+	 * This drivers uses the DIMM slot as "csrow" and the rest as "channel".
+	 */
 	layers[0].type = EDAC_MC_LAYER_BRANCH;
 	layers[0].size = 2;
-	layers[0].is_csrow = true;
+	layers[0].is_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
-	layers[1].size = MAX_CHANNELS;
+	layers[1].size = CHANNELS_PER_BRANCH;
 	layers[1].is_csrow = false;
 	layers[2].type = EDAC_MC_LAYER_SLOT;
 	layers[2].size = MAX_DIMMS_PER_CHANNEL;
@@ -1264,13 +1285,13 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 	/* Set the function pointer to an actual operation function */
 	mci->edac_check = i5400_check_error;
 
-	/* initialize the MC control structure 'csrows' table
+	/* initialize the MC control structure 'dimms' table
 	 * with the mapping and control information */
-	if (i5400_init_csrows(mci)) {
+	if (i5400_init_dimms(mci)) {
 		debugf0("MC: Setting mci->edac_cap to EDAC_FLAG_NONE\n"
-			"    because i5400_init_csrows() returned nonzero "
+			"    because i5400_init_dimms() returned nonzero "
 			"value\n");
-		mci->edac_cap = EDAC_FLAG_NONE;	/* no csrows found */
+		mci->edac_cap = EDAC_FLAG_NONE;	/* no dimms found */
 	} else {
 		debugf1("MC: Enable error reporting now\n");
 		i5400_enable_error_reporting(mci);
