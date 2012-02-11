@@ -905,6 +905,7 @@ static void edac_increment_ue_error(struct mem_ctl_info *mci,
 	}
 }
 
+#define OTHER_LABEL " or "
 void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			  struct mem_ctl_info *mci,
 			  const unsigned long page_frame_number,
@@ -920,7 +921,8 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	unsigned long remapped_page;
 	/* FIXME: too much for stack: move it to some pre-alocated area */
 	char detail[80], location[80];
-	char label[(EDAC_MC_LABEL_LEN + 2) * mci->tot_dimms], *p;
+	char label[(EDAC_MC_LABEL_LEN + 1 + sizeof(OTHER_LABEL)) * mci->tot_dimms];
+	char *p;
 	int row = -1, chan = -1;
 	int pos[EDAC_MAX_LAYERS] = { layer0, layer1, layer2 };
 	int i;
@@ -1003,13 +1005,15 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 		/*
 		 * If the error is memory-controller wide, there's no sense
 		 * on seeking for the affected DIMMs, as everything may be
-		 * affected.
+		 * affected. Also, don't show errors for non-filled dimm's.
 		 */
-		if (enable_filter) {
+		if (enable_filter && dimm->nr_pages) {
+			if (p != label) {
+				strcpy(p, OTHER_LABEL);
+				p += sizeof(OTHER_LABEL);
+			}
 			strcpy(p, dimm->label);
 			p = p + strlen(p);
-			*p = ' ';
-			p++;
 			*p = '\0';
 
 			/*
@@ -1046,7 +1050,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 
 	/* Fill the RAM location data */
 	p = location;
-	for (i = 0; i <= mci->n_layers; i++) {
+	for (i = 0; i < mci->n_layers; i++) {
 		if (pos[i] < 0)
 			continue;
 		p += sprintf(p, "%s %d ",
