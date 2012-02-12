@@ -892,6 +892,40 @@ static ssize_t errcount_ue_show(struct mem_ctl_info *mci, char *data,
 		       mci->ue_per_layer[ead->n_layers - 1][index]);
 }
 
+static struct dimm_info *dimm_pos(struct mem_ctl_info *mci,
+				  int pos[EDAC_MAX_LAYERS])
+{
+	int i, index = 0;
+
+	for (i = 0; i < mci->n_layers; i++) {
+		if (i < mci->n_layers - 1)
+			index += mci->layers[i + 1].size * pos[i];
+		else
+			index += pos[i];
+	}
+
+	return &mci->dimms[index];
+}
+
+static bool is_dimms_filled(struct mem_ctl_info *mci, int n_layers,
+			  int pos[EDAC_MAX_LAYERS])
+{
+	static struct dimm_info *dimm;
+	int i, count = 1;
+
+	dimm = dimm_pos(mci, pos);
+	for (i = n_layers + 1; i < mci->n_layers; i++)
+		count *= mci->layers[i].size;
+
+	for (i = 0; i < count; i++) {
+		if (dimm->nr_pages)
+			return true;
+		dimm++;
+	}
+
+	return false;
+}
+
 static int edac_create_errcount_layer(struct mem_ctl_info *mci,
 				      struct mcidev_sysfs_attribute **erc,
 				      struct errcount_attribute_data **ercd,
@@ -903,52 +937,64 @@ static int edac_create_errcount_layer(struct mem_ctl_info *mci,
 
 	memset(&pos, 0, sizeof(pos));
 	for (i = 0; i < count; i++) {
-		p = location;
-		for (j = 0; j <= layer; j++)
-			p += sprintf(p, "_%s%d",
-				     edac_layer_name[mci->layers[j].type],
-				     pos[j]);
+		/* Only show the nodes if is there any filled DIMM */
+		if (is_dimms_filled(mci, layer, pos)) {
+			p = location;
+			for (j = 0; j <= layer; j++)
+				p += sprintf(p, "_%s%d",
+					edac_layer_name[mci->layers[j].type],
+					pos[j]);
 
-		(*erc)->attr.name = kasprintf(GFP_KERNEL, "ce%s", location);
-		debugf4("%s() creating %s\n", __func__, (*erc)->attr.name);
-		if (!(*erc)->attr.name)
-			return -ENOMEM;
-		(*erc)->attr.mode = S_IRUGO | S_IWUSR;
-		(*erc)->show = errcount_ce_show;
-		(*erc)->priv = *ercd;
-		(*ercd)->n_layers = layer + 1;
-		memcpy((*ercd)->pos, pos, sizeof(pos));
-		err = sysfs_create_file(&mci->edac_mci_kobj, &(*erc)->attr);
-		if (err < 0) {
-			printk(KERN_ERR "sysfs_create_file failed: %d\n", err);
-			return err;
+			(*erc)->attr.name = kasprintf(GFP_KERNEL, "ce%s",
+						      location);
+			debugf4("%s() creating %s\n", __func__,
+				(*erc)->attr.name);
+			if (!(*erc)->attr.name)
+				return -ENOMEM;
+			(*erc)->attr.mode = S_IRUGO | S_IWUSR;
+			(*erc)->show = errcount_ce_show;
+			(*erc)->priv = *ercd;
+			(*ercd)->n_layers = layer + 1;
+			memcpy((*ercd)->pos, pos, sizeof(pos));
+			err = sysfs_create_file(&mci->edac_mci_kobj,
+						&(*erc)->attr);
+			if (err < 0) {
+				printk(KERN_ERR
+				       "sysfs_create_file failed: %d\n", err);
+				return err;
+			}
+			(*erc)++;
+			(*ercd)++;
+
+			(*erc)->attr.name = kasprintf(GFP_KERNEL, "ue%s",
+						      location);
+			debugf2("%s() creating %s\n", __func__,
+				(*erc)->attr.name);
+			if (!(*erc)->attr.name)
+				return -ENOMEM;
+			(*erc)->attr.mode = S_IRUGO | S_IWUSR;
+			(*erc)->show = errcount_ue_show;
+			(*erc)->priv = *ercd;
+			(*ercd)->n_layers = layer + 1;
+			memcpy((*ercd)->pos, pos, sizeof(pos));
+			err = sysfs_create_file(&mci->edac_mci_kobj,
+						&(*erc)->attr);
+			if (err < 0) {
+				printk(KERN_ERR
+				       "sysfs_create_file failed: %d\n", err);
+				return err;
+			}
+			(*erc)++;
+			(*ercd)++;
 		}
-		(*erc)++;
-		(*ercd)++;
 
-		(*erc)->attr.name = kasprintf(GFP_KERNEL, "ue%s", location);
-		debugf4("%s() creating %s\n", __func__, (*erc)->attr.name);
-		if (!(*erc)->attr.name)
-			return -ENOMEM;
-		(*erc)->attr.mode = S_IRUGO | S_IWUSR;
-		(*erc)->show = errcount_ue_show;
-		(*erc)->priv = *ercd;
-		(*ercd)->n_layers = layer + 1;
-		memcpy((*ercd)->pos, pos, sizeof(pos));
-		err = sysfs_create_file(&mci->edac_mci_kobj, &(*erc)->attr);
-		if (err < 0) {
-			printk(KERN_ERR "sysfs_create_file failed: %d\n", err);
-			return err;
-		}
-
+		/* increment to the next position */
 		for (j = layer; j >= 0; j--) {
 			pos[j]++;
 			if (pos[j] < mci->layers[j].size)
 				break;
 			pos[j] = 0;
 		}
-		(*erc)++;
-		(*ercd)++;
 	}
 
 	return 0;
