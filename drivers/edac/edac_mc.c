@@ -170,8 +170,6 @@ void *edac_align_ptr(void **p, unsigned size, int quant)
  * @rev_order:		Fills csrows/cs channels at the reverse order
  * @size_pvt:		size of private storage needed
  *
- * FIXME: rev_order seems to be uneeded. On all places, it is marked as false.
- * Tests are required, but if this is the case, this field can just be dropped.
  *
  * FIXME: drivers handle multi-rank memories on different ways: on some
  * drivers, one multi-rank memory is mapped as one DIMM, while, on others,
@@ -211,7 +209,7 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	struct dimm_info *dimm;
 	u32 *ce_per_layer[EDAC_MAX_LAYERS], *ue_per_layer[EDAC_MAX_LAYERS];
 	void *pvt, *p;
-	unsigned size, tot_dimms, count, per_layer_count[EDAC_MAX_LAYERS];
+	unsigned size, tot_dimms, count, pos[EDAC_MAX_LAYERS];
 	unsigned tot_csrows, tot_cschannels, tot_errcount = 0;
 	int i, j, n, len;
 	int err;
@@ -315,16 +313,19 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	/*
 	 * Fills the dimm struct
 	 */
-	memset(&per_layer_count, 0, sizeof(per_layer_count));
+	memset(&pos, 0, sizeof(pos));
 	row = 0;
 	chn = 0;
 	debugf4("%s: initializing %d dimms\n", __func__, tot_dimms);
 	for (i = 0; i < tot_dimms; i++) {
-		debugf4("%s: dimm%d: row %d, chan %d\n", __func__,
-			i, row, chn);
 		chan = &csi[row].channels[chn];
-		dimm = &mci->dimms[i];
+		dimm = GET_POS(lay, mci->dimms, n_layers,
+			       pos[0], pos[1], pos[2]);
 		dimm->mci = mci;
+
+		debugf2("%s: %d: dimm%zd (%d:%d:%d): row %d, chan %d\n", __func__,
+			i, (dimm - mci->dimms), 
+			pos[0], pos[1], pos[2], row, chn);
 
 		/*
 		 * Copy DIMM location and initialize the memory location
@@ -337,10 +338,10 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 		for (j = 0; j < n_layers; j++) {
 			n = snprintf(p, len,"%s#%u",
 				     edac_layer_name[layers[j].type],
-				     per_layer_count[j]);
+				     pos[j]);
 			p += n;
 			len -= n;
-			dimm->location[j] = per_layer_count[j];
+			dimm->location[j] = pos[j];
 		}
 
 		/* Link it to the csrows old API data */
@@ -371,10 +372,10 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 
 		/* Increment dimm location */
 		for (j = n_layers - 1; j >= 0; j--) {
-			per_layer_count[j]++;
-			if (per_layer_count[j] < layers[j].size)
+			pos[j]++;
+			if (pos[j] < layers[j].size)
 				break;
-			per_layer_count[j] = 0;
+			pos[j] = 0;
 		}
 	}
 
@@ -1010,10 +1011,10 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 		if (enable_filter && dimm->nr_pages) {
 			if (p != label) {
 				strcpy(p, OTHER_LABEL);
-				p += sizeof(OTHER_LABEL);
+				p += strlen(OTHER_LABEL);
 			}
 			strcpy(p, dimm->label);
-			p = p + strlen(p);
+			p += strlen(p);
 			*p = '\0';
 
 			/*
