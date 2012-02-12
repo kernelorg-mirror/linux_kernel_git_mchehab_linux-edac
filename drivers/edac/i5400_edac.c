@@ -48,10 +48,10 @@
 	edac_mc_chipset_printk(mci, level, "i5400", fmt, ##arg)
 
 /* Limits for i5400 */
-#define NUM_MTRS_PER_BRANCH	4
+#define MAX_BRANCHES		2
 #define CHANNELS_PER_BRANCH	2
-#define MAX_DIMMS_PER_CHANNEL	NUM_MTRS_PER_BRANCH
-#define	MAX_CHANNELS		4
+#define DIMMS_PER_CHANNEL	4
+#define	MAX_CHANNELS		(MAX_BRANCHES * CHANNELS_PER_BRANCH)
 
 /* Device 16,
  * Function 0: System Address
@@ -349,16 +349,16 @@ struct i5400_pvt {
 
 	u16 mir0, mir1;
 
-	u16 b0_mtr[NUM_MTRS_PER_BRANCH];	/* Memory Technlogy Reg */
+	u16 b0_mtr[DIMMS_PER_CHANNEL];	/* Memory Technlogy Reg */
 	u16 b0_ambpresent0;			/* Branch 0, Channel 0 */
 	u16 b0_ambpresent1;			/* Brnach 0, Channel 1 */
 
-	u16 b1_mtr[NUM_MTRS_PER_BRANCH];	/* Memory Technlogy Reg */
+	u16 b1_mtr[DIMMS_PER_CHANNEL];	/* Memory Technlogy Reg */
 	u16 b1_ambpresent0;			/* Branch 1, Channel 8 */
 	u16 b1_ambpresent1;			/* Branch 1, Channel 1 */
 
 	/* DIMM information matrix, allocating architecture maximums */
-	struct i5400_dimm_info dimm_info[MAX_DIMMS_PER_CHANNEL][MAX_CHANNELS];
+	struct i5400_dimm_info dimm_info[DIMMS_PER_CHANNEL][MAX_CHANNELS];
 
 	/* Actual values for this controller */
 	int maxch;				/* Max channels */
@@ -815,8 +815,8 @@ error:
 /*
  *	determine_amb_present
  *
- *		the information is contained in NUM_MTRS_PER_BRANCH different
- *		registers determining which of the NUM_MTRS_PER_BRANCH requires
+ *		the information is contained in DIMMS_PER_CHANNEL different
+ *		registers determining which of the DIMMS_PER_CHANNEL requires
  *              knowing which channel is in question
  *
  *	2 branches, each with 2 channels
@@ -859,7 +859,7 @@ static int determine_mtr(struct i5400_pvt *pvt, int dimm, int channel)
 	 */
 	n = dimm;
 
-	if (n >= NUM_MTRS_PER_BRANCH) {
+	if (n >= DIMMS_PER_CHANNEL) {
 		debugf0("ERROR: trying to access an invalid dimm: %d\n",
 			dimm);
 		return 0;
@@ -1064,7 +1064,7 @@ static void i5400_get_mc_regs(struct mem_ctl_info *mci)
 	debugf2("MIR1: limit= 0x%x  WAY1= %u  WAY0= %x\n", limit, way1, way0);
 
 	/* Get the set of MTR[0-3] regs by each branch */
-	for (slot_row = 0; slot_row < NUM_MTRS_PER_BRANCH; slot_row++) {
+	for (slot_row = 0; slot_row < DIMMS_PER_CHANNEL; slot_row++) {
 		int where = MTR0 + (slot_row * sizeof(u16));
 
 		/* Branch 0 set of MTR registers */
@@ -1089,7 +1089,7 @@ static void i5400_get_mc_regs(struct mem_ctl_info *mci)
 	/* Read and dump branch 0's MTRs */
 	debugf2("\nMemory Technology Registers:\n");
 	debugf2("   Branch 0:\n");
-	for (slot_row = 0; slot_row < NUM_MTRS_PER_BRANCH; slot_row++)
+	for (slot_row = 0; slot_row < DIMMS_PER_CHANNEL; slot_row++)
 		decode_mtr(slot_row, pvt->b0_mtr[slot_row]);
 
 	pci_read_config_word(pvt->branch_0, AMBPRESENT_0,
@@ -1106,7 +1106,7 @@ static void i5400_get_mc_regs(struct mem_ctl_info *mci)
 	} else {
 		/* Read and dump  branch 1's MTRs */
 		debugf2("   Branch 1:\n");
-		for (slot_row = 0; slot_row < NUM_MTRS_PER_BRANCH; slot_row++)
+		for (slot_row = 0; slot_row < DIMMS_PER_CHANNEL; slot_row++)
 			decode_mtr(slot_row, pvt->b1_mtr[slot_row]);
 
 		pci_read_config_word(pvt->branch_1, AMBPRESENT_0,
@@ -1150,21 +1150,28 @@ static int i5400_init_dimms(struct mem_ctl_info *mci)
 
 	ndimms = 0;
 
-	dimm = &mci->dimms[0];
 	/*
 	 * FIXME: remove  pvt->dimm_info[slot][channel] and use the 3
 	 * layers here.
 	 */
 	for (channel = 0; channel < mci->layers[0].size * mci->layers[1].size;
 	     channel++) {
-		for (slot = 0; slot < mci->layers[2].size; slot++, dimm++) {
+		for (slot = 0; slot < mci->layers[2].size; slot++) {
 			mtr = determine_mtr(pvt, slot, channel);
 
 			/* if no DIMMS on this slot, continue */
 			if (!MTR_DIMMS_PRESENT(mtr))
 				continue;
 
+			dimm = GET_POS(mci->layers, mci->dimms, mci->n_layers,
+				       channel / 2, channel % 2, slot);
+
 			size_mb =  pvt->dimm_info[slot][channel].megabytes;
+
+			debugf2("%s: dimm%zd (branch %d channel %d slot %d): %d.%03d GB\n",
+				__func__, dimm - mci->dimms,
+				channel / 2, channel % 2, slot,
+				size_mb / 1000, size_mb % 1000);
 
 			dimm->nr_pages = size_mb << 8;
 			dimm->grain = 8;
@@ -1243,13 +1250,13 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 	 * This drivers uses the DIMM slot as "csrow" and the rest as "channel".
 	 */
 	layers[0].type = EDAC_MC_LAYER_BRANCH;
-	layers[0].size = 2;
+	layers[0].size = MAX_BRANCHES;
 	layers[0].is_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
 	layers[1].size = CHANNELS_PER_BRANCH;
 	layers[1].is_csrow = false;
 	layers[2].type = EDAC_MC_LAYER_SLOT;
-	layers[2].size = MAX_DIMMS_PER_CHANNEL;
+	layers[2].size = DIMMS_PER_CHANNEL;
 	layers[2].is_csrow = true;
 	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, sizeof(*pvt));
 
@@ -1263,7 +1270,7 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 	pvt = mci->pvt_info;
 	pvt->system_address = pdev;	/* Record this device in our private */
 	pvt->maxch = MAX_CHANNELS;
-	pvt->maxdimmperch = MAX_DIMMS_PER_CHANNEL;
+	pvt->maxdimmperch = DIMMS_PER_CHANNEL;
 
 	/* 'get' the pci devices we want to reserve for our use */
 	if (i5400_get_devices(mci, dev_idx))

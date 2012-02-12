@@ -423,9 +423,32 @@ struct edac_mc_layer {
 /*
  * Maximum number of layers used by the memory controller to uniquelly
  * identify a single memory stick.
- * NOTE: change it also requires changing edac_mc_handle_error()
+ * NOTE: incrementing it would require changes at edac_mc_handle_error()
+ * and at the routines at edac_mc_sysfs that create layers
  */
 #define EDAC_MAX_LAYERS		3
+
+/*
+ * A loop could be used here to make it more generic, but, as we only have
+ * 3 layers, this is a little faster. By design, layers can never be 0 or
+ * more than 3. If that ever happens, a NULL is returned, causing an OOPS
+ * during the memory allocation routine, with would point to the developer
+ * that he's doing something wrong.
+ */
+#define GET_POS(layers, var, nlayers, lay0, lay1, lay2) ({		\
+	typeof(var) __p;						\
+	if ((nlayers) == 1)						\
+		__p = &var[lay0];					\
+	else if ((nlayers) == 2)					\
+		__p = &var[(lay1) + ((layers[1]).size * (lay0))];	\
+	else if ((nlayers) == 3)					\
+		__p = &var[(lay2) + ((layers[2]).size * ((lay1) +	\
+			    ((layers[1]).size * (lay0))))];		\
+	else								\
+		__p = NULL;						\
+	__p;								\
+})
+
 
 /* FIXME: add the proper per-location error counts */
 struct dimm_info {
