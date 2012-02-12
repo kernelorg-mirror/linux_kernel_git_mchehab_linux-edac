@@ -1151,9 +1151,13 @@ static int i5400_init_dimms(struct mem_ctl_info *mci)
 	ndimms = 0;
 
 	dimm = &mci->dimms[0];
-	for (channel = 0; channel < mci->layers[0].size * mci->layers[1].size; channel++) {
-		for (slot = 0; slot < mci->layers[1].size;
-		     slot++, dimm++) {
+	/*
+	 * FIXME: remove  pvt->dimm_info[slot][channel] and use the 3
+	 * layers here.
+	 */
+	for (channel = 0; channel < mci->layers[0].size * mci->layers[1].size;
+	     channel++) {
+		for (slot = 0; slot < mci->layers[2].size; slot++, dimm++) {
 			mtr = determine_mtr(pvt, slot, channel);
 
 			/* if no DIMMS on this slot, continue */
@@ -1233,12 +1237,16 @@ static int i5400_probe1(struct pci_dev *pdev, int dev_idx)
 	if (PCI_FUNC(pdev->devfn) != 0)
 		return -ENODEV;
 
-	/* allocate a new MC control structure */
+	/*
+	 * allocate a new MC control structure
+	 *
+	 * This drivers uses the DIMM slot as "csrow" and the rest as "channel".
+	 */
 	layers[0].type = EDAC_MC_LAYER_BRANCH;
 	layers[0].size = 2;
-	layers[0].is_csrow = true;
+	layers[0].is_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
-	layers[1].size = MAX_CHANNELS;
+	layers[1].size = CHANNELS_PER_BRANCH;
 	layers[1].is_csrow = false;
 	layers[2].type = EDAC_MC_LAYER_SLOT;
 	layers[2].size = MAX_DIMMS_PER_CHANNEL;
