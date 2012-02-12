@@ -961,7 +961,7 @@ static void edac_remove_errcount(struct mem_ctl_info *mci)
 	do {
 		if (!(erc->attr.name))
 			return;
-
+		debugf4("%s() removing %s\n", __func__, erc->attr.name);
 		sysfs_remove_file(&mci->edac_mci_kobj, &erc->attr);
 
 		kfree(erc->attr.name);
@@ -1434,16 +1434,14 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 	/* remove all dimms kobjects */
 	for (i = 0; i < mci->tot_dimms; i++) {
-		if (mci->dimms[i].nr_pages)
+		if (mci->dimms[i].nr_pages) {
+			debugf0("%s()  unreg dimm%d\n", __func__, i);
 			kobject_put(&mci->dimms[i].kobj);
+		}
 	}
 
 	/* remove all csrow kobjects */
-	debugf4("%s()  unregister this mci kobj\n", __func__);
-	for (i = 0; i < mci->tot_dimms; i++) {
-		debugf0("%s()  unreg dimm-%d\n", __func__, i);
-		kobject_put(&mci->dimms[i].kobj);
-	}
+	debugf4("%s()  unregister this mci csrows kobj\n", __func__);
 	for (i = 0; i < mci->num_csrows; i++) {
 		int n = 0;
 
