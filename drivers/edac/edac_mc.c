@@ -324,7 +324,7 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 		dimm->mci = mci;
 
 		debugf2("%s: %d: dimm%zd (%d:%d:%d): row %d, chan %d\n", __func__,
-			i, (dimm - mci->dimms), 
+			i, (dimm - mci->dimms),
 			pos[0], pos[1], pos[2], row, chn);
 
 		/*
@@ -942,7 +942,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 				p = "UE";
 				mci->ue_mc++;
 			}
-#ifdef CONFIG_X86
+#ifdef CONFIG_X86_MCE
 			if (arch_log)
 				trace_mc_out_of_range_mce(mci, p,
 							  edac_layer_name[mci->layers[i].type],
