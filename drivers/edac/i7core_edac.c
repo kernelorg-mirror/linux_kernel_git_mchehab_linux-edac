@@ -587,13 +587,15 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 			(data & REGISTERED_DIMM) ? 'R' : 'U');
 
 		for (j = 0; j < 3; j++) {
-			struct dimm_info *dimm = &mci->dimms[i * 3 + j];
+			struct dimm_info *dimm;
 			u32 banks, ranks, rows, cols;
 			u32 size, npages;
 
 			if (!DIMM_PRESENT(dimm_dod[j]))
 				continue;
 
+			dimm = GET_POS(mci->layers, mci->dimms, mci->n_layers,
+				       i, j, 0);
 			banks = numbank(MC_DOD_NUMBANK(dimm_dod[j]));
 			ranks = numrank(MC_DOD_NUMRANK(dimm_dod[j]));
 			rows = numrow(MC_DOD_NUMROW(dimm_dod[j]));

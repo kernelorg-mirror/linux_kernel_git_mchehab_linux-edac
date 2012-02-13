@@ -838,7 +838,9 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 		const unsigned long npages = i5100_npages(mci, i);
 		const unsigned chan = i5100_csrow_to_chan(mci, i);
 		const unsigned rank = i5100_csrow_to_rank(mci, i);
-		struct dimm_info *dimm = &mci->dimms[i];
+		struct dimm_info *dimm = GET_POS(mci->layers, mci->dimms,
+						 mci->n_layers,
+						 chan, rank, 0);
 
 		dimm->nr_pages = npages;
 

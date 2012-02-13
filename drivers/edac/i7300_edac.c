@@ -786,8 +786,6 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 	}
 
 	/* Get the set of MTR[0-7] regs by each branch */
-	dimm = mci->dimms;
-	mci->tot_dimms = 0;
 	for (slot = 0; slot < MAX_SLOTS; slot++) {
 		int where = mtr_regs[slot];
 		for (branch = 0; branch < MAX_BRANCHES; branch++) {
@@ -796,6 +794,9 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 					&pvt->mtr[slot][branch]);
 			for (ch = 0; ch < MAX_BRANCHES; ch++) {
 				int channel = to_channel(ch, branch);
+
+				dimm = GET_POS(mci->layers, mci->dimms,
+					       mci->n_layers, branch, ch, slot);
 
 				dinfo = &pvt->dimm_info[slot][channel];
 

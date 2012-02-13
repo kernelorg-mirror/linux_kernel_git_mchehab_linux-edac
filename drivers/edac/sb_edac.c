@@ -511,6 +511,7 @@ static int check_if_ecc_is_active(const u8 bus)
 static int get_dimm_config(struct mem_ctl_info *mci)
 {
 	struct sbridge_pvt *pvt = mci->pvt_info;
+	struct dimm_info *dimm;
 	int i, j, banks, ranks, rows, cols, size, npages;
 	u32 reg;
 	enum edac_type mode;
@@ -570,7 +571,8 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 		u32 mtr;
 
 		for (j = 0; j < ARRAY_SIZE(mtr_regs); j++) {
-			struct dimm_info *dimm = &mci->dimms[j];
+			dimm = GET_POS(mci->layers, mci->dimms, mci->n_layers,
+				       i, j, 0);
 			pci_read_config_dword(pvt->pci_tad[i],
 					      mtr_regs[j], &mtr);
 			debugf4("Channel #%d  MTR%d = %x\n", i, j, mtr);
