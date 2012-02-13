@@ -1015,6 +1015,8 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	} else {
 		debugf4("%s: csrow/channel to increment: (%d,%d)\n",
 			__func__, row, chan);
+		if (p == label)
+			strcpy(label, "unknown memory");
 		if (type == HW_EVENT_ERR_CORRECTED) {
 			if (row >= 0) {
 				mci->csrows[row].ce_count++;
