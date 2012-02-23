@@ -8,6 +8,13 @@
 #include <linux/tracepoint.h>
 #include <asm/mce.h>
 
+/*
+ * NOTE: due to trace contraints, we can't have the mce_record at the
+ * same file as mc_error_mce, as they're used by different files. Including
+ * trace headers twice cause duplicated symbols. So, care is needed to
+ * sync changes here with changes at include/trace/events/hw_event.h.
+ */
+
 TRACE_EVENT(mce_record,
 
 	TP_PROTO(struct mce *m),
