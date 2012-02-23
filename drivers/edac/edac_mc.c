@@ -33,6 +33,9 @@
 #include "edac_core.h"
 #include "edac_module.h"
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/hw_event.h>
+
 /* lock to memory controller's control array */
 static DEFINE_MUTEX(mem_ctls_mutex);
 static LIST_HEAD(mc_devices);
@@ -381,6 +384,9 @@ struct mem_ctl_info *edac_mc_alloc(unsigned mc_num,
 	 * which will perform kobj unregistration and the actual free
 	 * will occur during the kobject callback operation
 	 */
+
+	trace_hw_event_init("edac", (unsigned)mc_num);
+
 	return mci;
 }
 EXPORT_SYMBOL_GPL(edac_mc_alloc);
@@ -982,7 +988,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			  const int layer2,
 			  const char *msg,
 			  const char *other_detail,
-			  const void *mcelog)
+			  const void *arch_log)
 {
 	/* FIXME: too much for stack: move it to some pre-alocated area */
 	char detail[80], location[80];
@@ -1119,21 +1125,27 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	}
 
 	/* Memory type dependent details about the error */
-	if (type == HW_EVENT_ERR_CORRECTED) {
+	if (type == HW_EVENT_ERR_CORRECTED)
 		snprintf(detail, sizeof(detail),
 			"page:0x%lx offset:0x%lx grain:%d syndrome:0x%lx",
 			page_frame_number, offset_in_page,
 			grain, syndrome);
-		edac_ce_error(mci, pos, msg, location, label, detail,
-			      other_detail, enable_per_layer_report,
-			      page_frame_number, offset_in_page, grain);
-	} else {
+	else
 		snprintf(detail, sizeof(detail),
 			"page:0x%lx offset:0x%lx grain:%d",
 			page_frame_number, offset_in_page, grain);
 
+	/* Report the error via the trace interface */
+	trace_mc_error(type, mci->mc_idx, msg, label, location,
+		       detail, other_detail);
+
+	/* Report the error via the edac_mc_printk() interface */
+	if (type == HW_EVENT_ERR_CORRECTED)
+		edac_ce_error(mci, pos, msg, location, label, detail,
+			      other_detail, enable_per_layer_report,
+			      page_frame_number, offset_in_page, grain);
+	else
 		edac_ue_error(mci, pos, msg, location, label, detail,
 			      other_detail, enable_per_layer_report);
-	}
 }
 EXPORT_SYMBOL_GPL(edac_mc_handle_error);
