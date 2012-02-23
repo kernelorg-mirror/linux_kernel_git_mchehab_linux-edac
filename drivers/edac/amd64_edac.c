@@ -1611,12 +1611,6 @@ static void f1x_map_sysaddr_to_csrow(struct mem_ctl_info *mci, u64 sys_addr,
 
 	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci,
 				page, offset, syndrome,
-				-1, -1, -1,
-				EDAC_MOD_STR,
-				"failed to map error addr to a csrow", NULL);
-
-	edac_mc_handle_error(HW_EVENT_ERR_CORRECTED, mci,
-				page, offset, syndrome,
 				csrow, chan, -1,
 				EDAC_MOD_STR, "", NULL);
 }
