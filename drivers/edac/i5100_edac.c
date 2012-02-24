@@ -14,6 +14,11 @@
  * rows for each respective channel are laid out one after another,
  * the first half belonging to channel 0, the second half belonging
  * to channel 1.
+ *
+ * This driver is for DDR2 DIMMs, and it uses chip select to select among the
+ * several ranks. However, instead of showing memories as ranks, it outputs
+ * them as DIMM's. An internal table creates the association between ranks
+ * and DIMM's.
  */
 #include <linux/module.h>
 #include <linux/init.h>
@@ -831,31 +836,33 @@ static void __devinit i5100_init_interleaving(struct pci_dev *pdev,
 static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 {
 	int i;
-	unsigned long total_pages = 0UL;
 	struct i5100_priv *priv = mci->pvt_info;
 
 	for (i = 0; i < mci->tot_dimms; i++) {
+		struct dimm_info *dimm;
 		const unsigned long npages = i5100_npages(mci, i);
 		const unsigned chan = i5100_csrow_to_chan(mci, i);
 		const unsigned rank = i5100_csrow_to_rank(mci, i);
-		struct dimm_info *dimm = GET_POS(mci->layers, mci->dimms,
-						 mci->n_layers,
-						 chan, rank, 0);
+
+		if (!npages)
+			continue;
+
+		dimm = GET_POS(mci->layers, mci->dimms, mci->n_layers,
+			       chan, rank, 0);
 
 		dimm->nr_pages = npages;
 
-		if (npages) {
-			total_pages += npages;
+		dimm->grain = 32;
+		dimm->dtype = (priv->mtr[chan][rank].width == 4) ?
+		              DEV_X4 : DEV_X8;
+		dimm->mtype = MEM_RDDR2;
+		dimm->edac_mode = EDAC_SECDED;
+		snprintf(dimm->label, sizeof(dimm->label),
+			"DIMM%u",
+			i5100_rank_to_slot(mci, chan, rank));
 
-			dimm->grain = 32;
-			dimm->dtype = (priv->mtr[chan][rank].width == 4) ?
-				DEV_X4 : DEV_X8;
-			dimm->mtype = MEM_RDDR2;
-			dimm->edac_mode = EDAC_SECDED;
-			snprintf(dimm->label, sizeof(dimm->label),
-				"DIMM%u",
-				i5100_rank_to_slot(mci, chan, rank));
-		}
+		debugf2("dimm channel %d, rank %d, size %d\n",
+			chan, rank, PAGES_TO_MiB(npages));
 	}
 }
 
@@ -930,7 +937,7 @@ static int __devinit i5100_init_one(struct pci_dev *pdev,
 	layers[0].is_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_SLOT;
 	layers[1].size = ranksperch;
-	layers[1].is_csrow = false;
+	layers[1].is_csrow = true;
 	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers,
 			    false, sizeof(*priv));
 	if (!mci) {
