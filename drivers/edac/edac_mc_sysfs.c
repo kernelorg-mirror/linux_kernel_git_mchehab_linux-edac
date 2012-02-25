@@ -567,10 +567,12 @@ static struct kobj_type ktype_dimm = {
 };
 /* Create a CSROW object under specifed edac_mc_device */
 static int edac_create_dimm_object(struct mem_ctl_info *mci,
-					struct dimm_info *dimm, int index)
+					struct dimm_info *dimm, int index,
+					bool is_rank)
 {
 	struct kobject *kobj_mci = &mci->edac_mci_kobj;
 	struct kobject *kobj;
+	const char *nodename;
 	int err;
 
 	/* generate ..../edac/mc/mc<id>/dimm<index>   */
@@ -585,8 +587,12 @@ static int edac_create_dimm_object(struct mem_ctl_info *mci,
 	}
 
 	/* Instanstiate the dimm object */
+	if (!is_rank)
+		nodename = "dimm%d";
+	else
+		nodename = "rank%d";
 	err = kobject_init_and_add(&dimm->kobj, &ktype_dimm, kobj_mci,
-				   "dimm%d", index);
+				nodename, index);
 	if (err)
 		goto err_release_top_kobj;
 
@@ -1350,6 +1356,7 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	int err;
 	struct csrow_info *csrow;
 	struct kobject *kobj_mci = &mci->edac_mci_kobj;
+	bool is_rank = false;
 
 	debugf0("%s() idx=%d\n", __func__, mci->mc_idx);
 
@@ -1398,6 +1405,13 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 		}
 	}
 
+	for (i = 0; i < mci->n_layers; i++) {
+		if (mci->layers[i].type == EDAC_MC_LAYER_CHIP_SELECT) {
+			is_rank = true;
+			break;
+		}
+	}
+
 	/*
 	 * Make directories for each DIMM object under the mc<id> kobject
 	 */
@@ -1418,7 +1432,7 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 			printk(KERN_CONT "\n");
 		}
 #endif
-		err = edac_create_dimm_object(mci, dimm, j);
+		err = edac_create_dimm_object(mci, dimm, j, is_rank);
 		if (err) {
 			debugf1("%s() failure: create dimm %d obj\n",
 				__func__, j);
