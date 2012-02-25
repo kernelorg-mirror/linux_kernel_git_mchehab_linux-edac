@@ -571,6 +571,7 @@ static int edac_create_dimm_object(struct mem_ctl_info *mci,
 {
 	struct kobject *kobj_mci = &mci->edac_mci_kobj;
 	struct kobject *kobj;
+	const char *nodename;
 	int err;
 
 	/* generate ..../edac/mc/mc<id>/dimm<index>   */
@@ -585,8 +586,12 @@ static int edac_create_dimm_object(struct mem_ctl_info *mci,
 	}
 
 	/* Instanstiate the dimm object */
+	if (mci->mem_is_per_rank)
+		nodename = "rank%d";
+	else
+		nodename = "dimm%d";
 	err = kobject_init_and_add(&dimm->kobj, &ktype_dimm, kobj_mci,
-				   "dimm%d", index);
+				nodename, index);
 	if (err)
 		goto err_release_top_kobj;
 
