@@ -792,7 +792,7 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 			pci_read_config_word(pvt->pci_dev_2x_0_fbd_branch[branch],
 					where,
 					&pvt->mtr[slot][branch]);
-			for (ch = 0; ch < MAX_BRANCHES; ch++) {
+			for (ch = 0; ch < MAX_CH_PER_BRANCH; ch++) {
 				int channel = to_channel(ch, branch);
 
 				dimm = GET_POS(mci->layers, mci->dimms,
