@@ -915,31 +915,19 @@ static ssize_t errcount_ue_show(struct mem_ctl_info *mci, char *data,
 		       mci->ue_per_layer[ead->n_layers - 1][index]);
 }
 
-static struct dimm_info *dimm_pos(struct mem_ctl_info *mci,
-				  int pos[EDAC_MAX_LAYERS])
-{
-	int i, index = 0;
-
-	for (i = 0; i < mci->n_layers; i++) {
-		if (i < mci->n_layers - 1)
-			index += mci->layers[i + 1].size * pos[i];
-		else
-			index += pos[i];
-	}
-
-	return &mci->dimms[index];
-}
-
 static bool is_dimms_filled(struct mem_ctl_info *mci, int n_layers,
 			  int pos[EDAC_MAX_LAYERS])
 {
 	static struct dimm_info *dimm;
 	int i, count = 1;
 
-	dimm = dimm_pos(mci, pos);
+	dimm = GET_POS(mci->layers, mci->dimms, mci->n_layers,
+		       pos[0], pos[1], pos[2]);
 	for (i = n_layers + 1; i < mci->n_layers; i++)
 		count *= mci->layers[i].size;
 
+	debugf2("%s: layers: %d, pos: %d:%d:%d, count = %d\n",
+		__func__, n_layers, pos[0], pos[1], pos[2], count);
 	for (i = 0; i < count; i++) {
 		if (dimm->nr_pages)
 			return true;
@@ -970,7 +958,7 @@ static int edac_create_errcount_layer(struct mem_ctl_info *mci,
 
 			(*erc)->attr.name = kasprintf(GFP_KERNEL, "ce%s",
 						      location);
-			debugf4("%s() creating %s\n", __func__,
+			debugf2("%s() creating %s\n", __func__,
 				(*erc)->attr.name);
 			if (!(*erc)->attr.name)
 				return -ENOMEM;

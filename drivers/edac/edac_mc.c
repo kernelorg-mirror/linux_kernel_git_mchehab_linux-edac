@@ -323,6 +323,10 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 			       pos[0], pos[1], pos[2]);
 		dimm->mci = mci;
 
+		debugf2("%s: %d: dimm%zd (%d:%d:%d): row %d, chan %d\n", __func__,
+			i, (dimm - mci->dimms),
+			pos[0], pos[1], pos[2], row, chn);
+
 		/*
 		 * Copy DIMM location and initialize the memory location
 		 */
