@@ -605,9 +605,19 @@ struct mem_ctl_info {
 	struct csrow_info *csrows;
 	unsigned num_csrows, num_cschannel;
 
-	/* Memory Controller hierarchy */
+	/*
+	 * Memory Controller hierarchy
+	 *
+	 * There are basically two types of memory controller: the ones that
+	 * sees memory sticks ("dimms"), and the ones that sees memory ranks.
+	 * All old memory controllers enumerate memories per rank, but most
+	 * of the recent drivers enumerate memories per DIMM, instead.
+	 * When the memory controller is per rank, mem_is_per_rank is true.
+	 */
 	unsigned n_layers;
 	struct edac_mc_layer *layers;
+	bool mem_is_per_rank;
+
 	/*
 	 * DIMM info. Will eventually remove the entire csrows_info some day
 	 */
