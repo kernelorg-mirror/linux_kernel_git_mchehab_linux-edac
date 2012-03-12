@@ -861,7 +861,7 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 			"DIMM%u",
 			i5100_rank_to_slot(mci, chan, rank));
 
-		debugf2("dimm channel %d, rank %d, size %d\n",
+		debugf2("dimm channel %d, rank %d, size %zd\n",
 			chan, rank, PAGES_TO_MiB(npages));
 	}
 }
