@@ -1049,7 +1049,7 @@ static int __devinit i7300_init_one(struct pci_dev *pdev,
 	layers[0].size = MAX_BRANCHES;
 	layers[0].is_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
-	layers[1].size = MAX_CHANNELS;
+	layers[1].size = MAX_CH_PER_BRANCH;
 	layers[1].is_csrow = true;
 	layers[2].type = EDAC_MC_LAYER_SLOT;
 	layers[2].size = MAX_SLOTS;
