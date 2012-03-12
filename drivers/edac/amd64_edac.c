@@ -2227,7 +2227,7 @@ static int init_csrows(struct mem_ctl_info *mci)
 		for (j = 0; j < pvt->channel_count; j++) {
 			csrow->channels[j].dimm->mtype = mtype;
 			csrow->channels[j].dimm->edac_mode = edac_mode;
-			csrow->channels[j].dimm->nr_pages = nr_pages / pvt->channel_count;
+			csrow->channels[j].dimm->nr_pages = nr_pages;
 
 		}
 
