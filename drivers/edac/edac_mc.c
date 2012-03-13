@@ -235,10 +235,8 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 		else
 			tot_cschannels *= layers[i].size;
 
-		if (layers[i].type == EDAC_MC_LAYER_CHIP_SELECT) {
+		if (layers[i].type == EDAC_MC_LAYER_CHIP_SELECT)
 			per_rank = true;
-			break;
-		}
 	}
 
 	/* Figure out the offsets of the various items from the start of an mc
