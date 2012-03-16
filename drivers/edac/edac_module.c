@@ -90,6 +90,10 @@ static int __init edac_init(void)
 	 */
 	edac_pci_clear_parity_errors();
 
+	err = edac_mc_sysfs_init();
+	if (err)
+		goto error;
+
 	/*
 	 * now set up the mc_kset under the edac class object
 	 */
@@ -125,6 +129,7 @@ static void __exit edac_exit(void)
 	/* tear down the various subsystems */
 	edac_workqueue_teardown();
 	edac_sysfs_teardown_mc_kset();
+	edac_mc_sysfs_exit();
 }
 
 /*

@@ -14,6 +14,7 @@
 
 #include <linux/atomic.h>
 #include <linux/sysdev.h>
+#include <linux/device.h>
 
 #define EDAC_OPSTATE_INVAL	-1
 #define EDAC_OPSTATE_POLL	0
@@ -422,9 +423,9 @@ struct edac_mc_layer {
 	__p;								\
 })
 
-
-/* FIXME: add the proper per-location error counts */
 struct dimm_info {
+	struct device dev;
+
 	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
 
 	/* Memory location data */
@@ -534,6 +535,8 @@ struct edac_hierarchy {
 /* MEMORY controller information structure
  */
 struct mem_ctl_info {
+	struct device			dev;
+
 	struct list_head link;	/* for global list of mem_ctl_info structs */
 
 	struct module *owner;	/* Module owner of this control struct */

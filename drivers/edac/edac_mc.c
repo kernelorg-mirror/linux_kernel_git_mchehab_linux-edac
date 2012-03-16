@@ -722,6 +722,12 @@ int edac_mc_add_mc(struct mem_ctl_info *mci)
 		goto fail1;
 	}
 
+	if (edac_create_sysfs_mci_device_legacy(mci)) {
+		edac_mc_printk(mci, KERN_WARNING,
+			"failed to create sysfs device\n");
+		goto fail1;
+	}
+
 	/* If there IS a check routine, then we are running POLLED */
 	if (mci->edac_check != NULL) {
 		/* This instance is NOW RUNNING */
@@ -780,6 +786,7 @@ struct mem_ctl_info *edac_mc_del_mc(struct device *dev)
 	mci->op_state = OP_OFFLINE;
 
 	/* remove from sysfs */
+	edac_remove_sysfs_mci_device_legacy(mci);
 	edac_remove_sysfs_mci_device(mci);
 
 	edac_printk(KERN_INFO, EDAC_MC,
