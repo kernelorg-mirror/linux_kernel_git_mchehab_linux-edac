@@ -460,6 +460,8 @@ struct dimm_info {
  *	  patches in this series will fix this issue.
  */
 struct rank_info {
+	struct device dev;
+
 	int chan_idx;
 	struct csrow_info *csrow;
 	struct dimm_info *dimm;
@@ -468,6 +470,8 @@ struct rank_info {
 };
 
 struct csrow_info {
+	struct device dev;
+
 	int csrow_idx;			/* the chip-select row */
 
 	/* Used only by edac_mc_find_csrow_by_page() */

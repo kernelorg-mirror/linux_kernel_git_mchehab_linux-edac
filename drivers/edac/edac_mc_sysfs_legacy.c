@@ -359,154 +359,13 @@ err_out:
 	return err;
 }
 
-/* default sysfs methods and data structures for the main MCI kobject */
-
-static ssize_t mci_reset_counters_store(struct mem_ctl_info *mci,
-					const char *data, size_t count,
-					void *priv)
-{
-	int cnt, row, chan, i;
-	mci->ue_mc = 0;
-	mci->ce_mc = 0;
-	mci->ue_noinfo_count = 0;
-	mci->ce_noinfo_count = 0;
-
-
-	for (row = 0; row < mci->num_csrows; row++) {
-		struct csrow_info *ri = &mci->csrows[row];
-
-		ri->ue_count = 0;
-		ri->ce_count = 0;
-
-		for (chan = 0; chan < ri->nr_channels; chan++)
-			ri->channels[chan].ce_count = 0;
-	}
-
-	cnt = 1;
-	for (i = 0; i < mci->n_layers; i++) {
-		cnt *= mci->layers[i].size;
-		memset(mci->ce_per_layer[i], 0, cnt * sizeof(u32));
-		memset(mci->ue_per_layer[i], 0, cnt * sizeof(u32));
-	}
-
-	mci->start_time = jiffies;
-	return count;
-}
-
-/* Memory scrubbing interface:
- *
- * A MC driver can limit the scrubbing bandwidth based on the CPU type.
- * Therefore, ->set_sdram_scrub_rate should be made to return the actual
- * bandwidth that is accepted or 0 when scrubbing is to be disabled.
- *
- * Negative value still means that an error has occurred while setting
- * the scrub rate.
- */
-static ssize_t mci_sdram_scrub_rate_store(struct mem_ctl_info *mci,
-					  const char *data, size_t count,
-					  void *priv)
-{
-	unsigned long bandwidth = 0;
-	int new_bw = 0;
-
-	if (!mci->set_sdram_scrub_rate)
-		return -EINVAL;
-
-	if (strict_strtoul(data, 10, &bandwidth) < 0)
-		return -EINVAL;
-
-	new_bw = mci->set_sdram_scrub_rate(mci, bandwidth);
-	if (new_bw < 0) {
-		edac_printk(KERN_WARNING, EDAC_MC,
-			    "Error setting scrub rate to: %lu\n", bandwidth);
-		return -EINVAL;
-	}
-
-	return count;
-}
-
-/*
- * ->get_sdram_scrub_rate() return value semantics same as above.
- */
-static ssize_t mci_sdram_scrub_rate_show(struct mem_ctl_info *mci, char *data,
-					 void *priv)
-{
-	int bandwidth = 0;
-
-	if (!mci->get_sdram_scrub_rate)
-		return -EINVAL;
-
-	bandwidth = mci->get_sdram_scrub_rate(mci);
-	if (bandwidth < 0) {
-		edac_printk(KERN_DEBUG, EDAC_MC, "Error reading scrub rate\n");
-		return bandwidth;
-	}
-
-	return sprintf(data, "%d\n", bandwidth);
-}
-
-/* default attribute files for the MCI object */
-static ssize_t mci_ue_count_show(struct mem_ctl_info *mci, char *data,
-				 void *priv)
-{
-	return sprintf(data, "%d\n", mci->ue_mc);
-}
-
-static ssize_t mci_ce_count_show(struct mem_ctl_info *mci, char *data,
-				 void *priv)
-{
-	return sprintf(data, "%d\n", mci->ce_mc);
-}
-
-static ssize_t mci_ce_noinfo_show(struct mem_ctl_info *mci, char *data,
-				  void *priv)
-{
-	return sprintf(data, "%d\n", mci->ce_noinfo_count);
-}
-
-static ssize_t mci_ue_noinfo_show(struct mem_ctl_info *mci, char *data,
-				  void *priv)
-{
-	return sprintf(data, "%d\n", mci->ue_noinfo_count);
-}
-
-static ssize_t mci_seconds_show(struct mem_ctl_info *mci, char *data,
-				void *priv)
-{
-	return sprintf(data, "%ld\n", (jiffies - mci->start_time) / HZ);
-}
-
-static ssize_t mci_ctl_name_show(struct mem_ctl_info *mci, char *data,
-				 void *priv)
-{
-	return sprintf(data, "%s\n", mci->ctl_name);
-}
-
-static ssize_t mci_size_mb_show(struct mem_ctl_info *mci, char *data,
-				void *priv)
-{
-	int total_pages, csrow_idx, j;
-
-	for (total_pages = csrow_idx = 0; csrow_idx < mci->num_csrows;
-	     csrow_idx++) {
-		struct csrow_info *csrow = &mci->csrows[csrow_idx];
-
-		for (j = 0; j < csrow->nr_channels; j++) {
-			struct dimm_info *dimm = csrow->channels[j].dimm;
-
-			total_pages += dimm->nr_pages;
-		}
-	}
-
-	return sprintf(data, "%u\n", PAGES_TO_MiB(total_pages));
-}
-
 #define to_mci(k) container_of(k, struct mem_ctl_info, edac_mci_kobj)
 #define to_mcidev_attr(a) container_of(a,struct mcidev_sysfs_attribute,attr)
 
+
 /* MCI show/store functions for top most object */
 static ssize_t mcidev_show(struct kobject *kobj, struct attribute *attr,
-			char *buffer)
+			   char *buffer)
 {
 	struct mem_ctl_info *mem_ctl_info = to_mci(kobj);
 	struct mcidev_sysfs_attribute *mcidev_attr = to_mcidev_attr(attr);
@@ -515,13 +374,13 @@ static ssize_t mcidev_show(struct kobject *kobj, struct attribute *attr,
 
 	if (mcidev_attr->show)
 		return mcidev_attr->show(mem_ctl_info, buffer,
-					 mcidev_attr->priv);
+					mcidev_attr->priv);
 
 	return -EIO;
 }
 
 static ssize_t mcidev_store(struct kobject *kobj, struct attribute *attr,
-			const char *buffer, size_t count)
+			    const char *buffer, size_t count)
 {
 	struct mem_ctl_info *mem_ctl_info = to_mci(kobj);
 	struct mcidev_sysfs_attribute *mcidev_attr = to_mcidev_attr(attr);
@@ -530,7 +389,7 @@ static ssize_t mcidev_store(struct kobject *kobj, struct attribute *attr,
 
 	if (mcidev_attr->store)
 		return mcidev_attr->store(mem_ctl_info, buffer, count,
-					  mcidev_attr->priv);
+					mcidev_attr->priv);
 
 	return -EIO;
 }
@@ -541,44 +400,9 @@ static const struct sysfs_ops mci_ops = {
 	.store = mcidev_store
 };
 
-
-#define MCIDEV_ATTR(_name,_mode,_show,_store)			\
-static struct mcidev_sysfs_attribute mci_attr_##_name = {	\
-	.attr = {.name = __stringify(_name), .mode = _mode },   \
-	.show   = _show,					\
-	.store  = _store,					\
-	.priv   = NULL,                                         \
-};
-
-/* default Control file */
-MCIDEV_ATTR(reset_counters, S_IWUSR, NULL, mci_reset_counters_store);
-
-/* default Attribute files */
-MCIDEV_ATTR(mc_name, S_IRUGO, mci_ctl_name_show, NULL);
-MCIDEV_ATTR(size_mb, S_IRUGO, mci_size_mb_show, NULL);
-MCIDEV_ATTR(seconds_since_reset, S_IRUGO, mci_seconds_show, NULL);
-MCIDEV_ATTR(ue_noinfo_count, S_IRUGO, mci_ue_noinfo_show, NULL);
-MCIDEV_ATTR(ce_noinfo_count, S_IRUGO, mci_ce_noinfo_show, NULL);
-MCIDEV_ATTR(ue_count, S_IRUGO, mci_ue_count_show, NULL);
-MCIDEV_ATTR(ce_count, S_IRUGO, mci_ce_count_show, NULL);
-
-/* memory scrubber attribute file */
-MCIDEV_ATTR(sdram_scrub_rate, S_IRUGO | S_IWUSR, mci_sdram_scrub_rate_show,
-	mci_sdram_scrub_rate_store);
-
 static struct mcidev_sysfs_attribute *mci_attr[] = {
-	&mci_attr_reset_counters,
-	&mci_attr_mc_name,
-	&mci_attr_size_mb,
-	&mci_attr_seconds_since_reset,
-	&mci_attr_ue_noinfo_count,
-	&mci_attr_ce_noinfo_count,
-	&mci_attr_ue_count,
-	&mci_attr_ce_count,
-	&mci_attr_sdram_scrub_rate,
 	NULL
 };
-
 
 /*
  * Release of a MC controlling instance
@@ -1010,46 +834,9 @@ void edac_remove_sysfs_mci_device_legacy(struct mem_ctl_info *mci)
  * Return:  0 SUCCESS
  *         !0 FAILURE error code
  */
-int edac_sysfs_setup_mc_kset(void)
+void edac_sysfs_setup_mc_kset(struct kset *kset)
 {
-	int err = -EINVAL;
-	struct sysdev_class *edac_class;
-
 	debugf1("%s()\n", __func__);
 
-	/* get the /sys/devices/system/edac class reference */
-	edac_class = edac_get_sysfs_class();
-	if (edac_class == NULL) {
-		debugf1("%s() no edac_class error=%d\n", __func__, err);
-		goto fail_out;
-	}
-
-	/* Init the MC's kobject */
-	mc_kset = kset_create_and_add("mc", NULL, &edac_class->kset.kobj);
-	if (!mc_kset) {
-		err = -ENOMEM;
-		debugf1("%s() Failed to register '.../edac/mc'\n", __func__);
-		goto fail_kset;
-	}
-
-	debugf1("%s() Registered '.../edac/mc' kobject\n", __func__);
-
-	return 0;
-
-fail_kset:
-	edac_put_sysfs_class();
-
-fail_out:
-	return err;
-}
-
-/*
- * edac_sysfs_teardown_mc_kset
- *
- *	deconstruct the mc_ket for memory controllers
- */
-void edac_sysfs_teardown_mc_kset(void)
-{
-	kset_unregister(mc_kset);
-	edac_put_sysfs_class();
+	mc_kset = kset;
 }

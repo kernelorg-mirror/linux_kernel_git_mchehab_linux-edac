@@ -7,6 +7,9 @@
  *
  * Written Doug Thompson <norsk5@xmission.com> www.softwarebitmaker.com
  *
+ * (c) 2012 - Mauro Carvalho Chehab <mchehab@redhat.com
+ * 	The entire API were re-written, and ported to use struct device
+ *
  */
 
 #include <linux/ctype.h>
@@ -126,6 +129,297 @@ static const char *edac_caps[] = {
 	[EDAC_S8ECD8ED] = "S8ECD8ED",
 	[EDAC_S16ECD16ED] = "S16ECD16ED"
 };
+
+#ifdef CONFIG_EDAC_LEGACY_SYSFS
+/*
+ * EDAC sysfs CSROW data structures and methods
+ */
+
+#define to_csrow(k) container_of(k, struct csrow_info, dev)
+
+/*
+ * We need it to avoid namespace conflicts between the legacy API
+ * and the per-dimm/per-rank one
+ */
+#define DEVICE_ATTR_LEGACY(_name, _mode, _show, _store) \
+	struct device_attribute dev_attr_legacy_##_name = __ATTR(_name, _mode, _show, _store)
+
+struct dev_ch_attribute {
+	struct device_attribute attr;
+	int channel;
+};
+
+#define DEVICE_CHANNEL(_name, _mode, _show, _store, _var) \
+	struct dev_ch_attribute dev_attr_legacy_##_name = \
+		{ __ATTR(_name, _mode, _show, _store), (_var) }
+
+#define to_channel(k) (container_of(k, struct dev_ch_attribute, attr)->channel)
+
+/* Set of more default csrow<id> attribute show/store functions */
+static ssize_t csrow_ue_count_show(struct device *dev,
+				   struct device_attribute *mattr, char *data)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+
+	return sprintf(data, "%u\n", csrow->ue_count);
+}
+
+static ssize_t csrow_ce_count_show(struct device *dev,
+				   struct device_attribute *mattr, char *data)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+
+	return sprintf(data, "%u\n", csrow->ce_count);
+}
+
+static ssize_t csrow_size_show(struct device *dev,
+			       struct device_attribute *mattr, char *data)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+	int i;
+	u32 nr_pages = 0;
+
+	for (i = 0; i < csrow->nr_channels; i++)
+		nr_pages += csrow->channels[i].dimm->nr_pages;
+	return sprintf(data, "%u\n", PAGES_TO_MiB(nr_pages));
+}
+
+static ssize_t csrow_mem_type_show(struct device *dev,
+				   struct device_attribute *mattr, char *data)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+
+	return sprintf(data, "%s\n", mem_types[csrow->channels[0].dimm->mtype]);
+}
+
+static ssize_t csrow_dev_type_show(struct device *dev,
+				   struct device_attribute *mattr, char *data)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+
+	return sprintf(data, "%s\n", dev_types[csrow->channels[0].dimm->dtype]);
+}
+
+static ssize_t csrow_edac_mode_show(struct device *dev,
+				    struct device_attribute *mattr,
+				    char *data)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+
+	return sprintf(data, "%s\n", edac_caps[csrow->channels[0].dimm->edac_mode]);
+}
+
+/* show/store functions for DIMM Label attributes */
+static ssize_t channel_dimm_label_show(struct device *dev,
+				       struct device_attribute *mattr,
+				       char *data)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+	unsigned chan = to_channel(mattr);
+	struct rank_info *rank = &csrow->channels[chan];
+
+	/* if field has not been initialized, there is nothing to send */
+	if (!rank->dimm)
+		return 0;
+	if (!rank->dimm->label[0])
+		return 0;
+
+	return snprintf(data, EDAC_MC_LABEL_LEN, "%s\n",
+			rank->dimm->label);
+}
+
+static ssize_t channel_dimm_label_store(struct device *dev,
+				        struct device_attribute *mattr,
+				        const char *data, size_t count)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+	unsigned chan = to_channel(mattr);
+	struct rank_info *rank = &csrow->channels[chan];
+
+	ssize_t max_size = 0;
+
+	if (!rank->dimm)
+		return 0;
+
+	max_size = min((ssize_t) count, (ssize_t) EDAC_MC_LABEL_LEN - 1);
+	strncpy(rank->dimm->label, data, max_size);
+	rank->dimm->label[max_size] = '\0';
+
+	return max_size;
+}
+
+/* show function for dynamic chX_ce_count attribute */
+static ssize_t channel_ce_count_show(struct device *dev,
+				     struct device_attribute *mattr, char *data)
+{
+	struct csrow_info *csrow = to_csrow(dev);
+	unsigned chan = to_channel(mattr);
+	struct rank_info *rank = &csrow->channels[chan];
+
+	return sprintf(data, "%u\n", rank->ce_count);
+}
+
+/* cwrow<id>/attribute files */
+DEVICE_ATTR_LEGACY(size_mb, S_IRUGO, csrow_size_show, NULL);
+DEVICE_ATTR_LEGACY(dev_type, S_IRUGO, csrow_dev_type_show, NULL);
+DEVICE_ATTR_LEGACY(mem_type, S_IRUGO, csrow_mem_type_show, NULL);
+DEVICE_ATTR_LEGACY(edac_mode, S_IRUGO, csrow_edac_mode_show, NULL);
+DEVICE_ATTR_LEGACY(ue_count, S_IRUGO, csrow_ue_count_show, NULL);
+DEVICE_ATTR_LEGACY(ce_count, S_IRUGO, csrow_ce_count_show, NULL);
+
+/* default attributes of the CSROW<id> object */
+static struct attribute *csrow_attrs[] = {
+	&dev_attr_legacy_dev_type.attr,
+	&dev_attr_legacy_mem_type.attr,
+	&dev_attr_legacy_edac_mode.attr,
+	&dev_attr_legacy_size_mb.attr,
+	&dev_attr_legacy_ue_count.attr,
+	&dev_attr_legacy_ce_count.attr,
+	NULL,
+};
+
+static struct attribute_group csrow_attr_grp = {
+	.attrs	= csrow_attrs,
+};
+
+static const struct attribute_group *csrow_attr_groups[] = {
+	&csrow_attr_grp,
+	NULL
+};
+
+static void csrow_attr_release(struct device *device)
+{
+}
+
+static struct device_type csrow_attr_type = {
+	.groups		= csrow_attr_groups,
+	.release	= csrow_attr_release,
+};
+
+/*
+ * possible dynamic channel DIMM Label attribute files
+ *
+ */
+
+#define EDAC_NR_CHANNELS	6
+
+DEVICE_CHANNEL(ch0_dimm_label, S_IRUGO | S_IWUSR,
+	channel_dimm_label_show, channel_dimm_label_store, 0);
+DEVICE_CHANNEL(ch1_dimm_label, S_IRUGO | S_IWUSR,
+	channel_dimm_label_show, channel_dimm_label_store, 1);
+DEVICE_CHANNEL(ch2_dimm_label, S_IRUGO | S_IWUSR,
+	channel_dimm_label_show, channel_dimm_label_store, 2);
+DEVICE_CHANNEL(ch3_dimm_label, S_IRUGO | S_IWUSR,
+	channel_dimm_label_show, channel_dimm_label_store, 3);
+DEVICE_CHANNEL(ch4_dimm_label, S_IRUGO | S_IWUSR,
+	channel_dimm_label_show, channel_dimm_label_store, 4);
+DEVICE_CHANNEL(ch5_dimm_label, S_IRUGO | S_IWUSR,
+	channel_dimm_label_show, channel_dimm_label_store, 5);
+
+/* Total possible dynamic DIMM Label attribute file table */
+static struct device_attribute *dynamic_csrow_dimm_attr[] = {
+	&dev_attr_legacy_ch0_dimm_label.attr,
+	&dev_attr_legacy_ch1_dimm_label.attr,
+	&dev_attr_legacy_ch2_dimm_label.attr,
+	&dev_attr_legacy_ch3_dimm_label.attr,
+	&dev_attr_legacy_ch4_dimm_label.attr,
+	&dev_attr_legacy_ch5_dimm_label.attr
+};
+
+/* possible dynamic channel ce_count attribute files */
+DEVICE_CHANNEL(ch0_ce_count, S_IRUGO | S_IWUSR,
+		   channel_ce_count_show, NULL, 0);
+DEVICE_CHANNEL(ch1_ce_count, S_IRUGO | S_IWUSR,
+		   channel_ce_count_show, NULL, 1);
+DEVICE_CHANNEL(ch2_ce_count, S_IRUGO | S_IWUSR,
+		   channel_ce_count_show, NULL, 2);
+DEVICE_CHANNEL(ch3_ce_count, S_IRUGO | S_IWUSR,
+		   channel_ce_count_show, NULL, 3);
+DEVICE_CHANNEL(ch4_ce_count, S_IRUGO | S_IWUSR,
+		   channel_ce_count_show, NULL, 4);
+DEVICE_CHANNEL(ch5_ce_count, S_IRUGO | S_IWUSR,
+		   channel_ce_count_show, NULL, 5);
+
+/* Total possible dynamic ce_count attribute file table */
+static struct device_attribute *dynamic_csrow_ce_count_attr[] = {
+	&dev_attr_legacy_ch0_ce_count.attr,
+	&dev_attr_legacy_ch1_ce_count.attr,
+	&dev_attr_legacy_ch2_ce_count.attr,
+	&dev_attr_legacy_ch3_ce_count.attr,
+	&dev_attr_legacy_ch4_ce_count.attr,
+	&dev_attr_legacy_ch5_ce_count.attr
+};
+
+/* Create a CSROW object under specifed edac_mc_device */
+static int edac_create_csrow_object(struct mem_ctl_info *mci,
+				    struct csrow_info *csrow, int index)
+{
+	int err, chan;
+
+	if (csrow->nr_channels >= EDAC_NR_CHANNELS)
+		return -ENODEV;
+
+	csrow->dev.type = &csrow_attr_type;
+	csrow->dev.bus = mci_pdev.bus;
+	device_initialize(&csrow->dev);
+	csrow->dev.parent = &mci->dev;
+	dev_set_name(&csrow->dev, "csrow%d", index);
+	dev_set_drvdata(&csrow->dev, csrow);
+
+	debugf0("%s(): creating (virtual) csrow node %s\n", __func__,
+		dev_name(&csrow->dev));
+
+	err = device_add(&csrow->dev);
+	if (err < 0)
+		return err;
+
+	for (chan = 0; chan < csrow->nr_channels; chan++) {
+		err = device_create_file(&csrow->dev,
+					 dynamic_csrow_dimm_attr[chan]);
+		if (err < 0)
+			goto error;
+		err = device_create_file(&csrow->dev,
+					 dynamic_csrow_ce_count_attr[chan]);
+		if (err < 0)
+			goto error;
+	}
+
+	return 0;
+
+	/* error unwind stack */
+error:
+	put_device(&csrow->dev);
+
+	return err;
+}
+
+/* Create a CSROW object under specifed edac_mc_device */
+static int edac_create_csrow_objects(struct mem_ctl_info *mci)
+{
+	int err, i;
+
+	for (i = 0; i < mci->num_csrows; i++) {
+		err = edac_create_csrow_object(mci, &mci->csrows[i], i);
+		if (err < 0)
+			goto error;
+	}
+	return 0;
+
+error:
+	for (--i; i >= 0; i--)
+		put_device(&mci->csrows[i].dev);
+
+	return err;
+}
+
+static void edac_delete_csrow_objects(struct mem_ctl_info *mci)
+{
+	int i;
+
+	for (i = 0; i < mci->num_csrows; i++)
+		put_device(&mci->csrows[i].dev);
+}
+#endif
 
 /*
  * Per-dimm (or per-rank) devices
@@ -259,7 +553,7 @@ static int edac_create_dimm_object(struct mem_ctl_info *mci,
 	dimm->mci = mci;
 
 	dimm->dev.type = &dimm_attr_type;
-	mci->dev.bus = mci_pdev.bus;
+	dimm->dev.bus = mci_pdev.bus;
 	device_initialize(&dimm->dev);
 
 	dimm->dev.parent = &mci->dev;
@@ -786,6 +1080,13 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 			goto fail;
 		}
 	}
+
+#ifdef CONFIG_EDAC_LEGACY_SYSFS
+	err = edac_create_csrow_objects(mci);
+	if (err < 0)
+		goto fail;
+#endif
+
 #if 0
 	err = edac_create_errcount_objects(mci);
 	if (err) {
@@ -809,6 +1110,12 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	return 0;
 
 fail:
+	for (i--; i >= 0; i--) {
+		struct dimm_info *dimm = &mci->dimms[i];
+		if (dimm->nr_pages == 0)
+			continue;
+		put_device(&dimm->dev);
+	}
 	put_device(&mci->dev);
 	return err;
 }
@@ -821,6 +1128,10 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 	int i;
 
 	debugf0("%s()\n", __func__);
+
+#ifdef CONFIG_EDAC_LEGACY_SYSFS
+	edac_delete_csrow_objects(mci);
+#endif
 
 	for (i = 0; i < mci->tot_dimms; i++) {
 		struct dimm_info *dimm = &mci->dimms[i];
@@ -860,6 +1171,8 @@ int __init edac_mc_sysfs_init(void)
 	err = device_add(&mci_pdev);
 	if (err < 0)
 		return err;
+
+	edac_sysfs_setup_mc_kset(mci_pdev.kobj.kset);
 
 	return 0;
 }
