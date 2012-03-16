@@ -730,6 +730,8 @@ err:
 }
 #endif
 
+static struct device mci_parent;
+
 /*
  * Create a new Memory Controller kobject instance,
  *	mc<id> under the 'mc' directory
@@ -748,7 +750,7 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	mci->dev.bus = &mci_bus_type;
 	device_initialize(&mci->dev);
 
-	mci->dev.parent = mci->pdev;
+	mci->dev.parent = &mci_parent;
 	dev_set_name(&mci->dev, "mc%d", mci->mc_idx);
 	dev_set_drvdata(&mci->dev, mci);
 	pm_runtime_forbid(&mci->dev);
@@ -843,13 +845,35 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 int __init edac_mc_sysfs_init(void)
 {
 	int rc;
+	struct sysdev_class *edac_class;
 
-	debugf0("%s() creating mc bus\n", __func__);
+	/* get the /sys/devices/system/edac class reference */
+	edac_class = edac_get_sysfs_class();
+	if (edac_class == NULL) {
+		debugf1("%s() no edac_class\n", __func__);
+		return -EINVAL;
+	}
+
+	/*
+	 * FIXME: fake a parent device for the EDAC node
+	 *
+	 * Unfortunately, I couldn't find any easy way to do it, as sysdev
+	 * doesn't use struct device.
+	 */
+	mci_parent.type = &mci_attr_type;
+	mci_parent.bus = &mci_bus_type;
+	device_initialize(&mci_parent);
+	dev_set_name(&mci_parent, "edac");
+	memcpy(&mci_parent.kobj, &edac_class->kset.kobj,
+	       sizeof(mci_parent.kobj));
+
 	rc = bus_register(&mci_bus_type);
 	if (rc) {
 		printk(KERN_ERR "rc_core: unable to register rc class\n");
 		return rc;
 	}
+
+	debugf1("%s() Registered '.../edac/mc' kobject\n", __func__);
 
 	return 0;
 }
@@ -857,5 +881,7 @@ int __init edac_mc_sysfs_init(void)
 void __exit edac_mc_sysfs_exit(void)
 {
 	debugf0("%s() removing mc bus\n", __func__);
+	edac_put_sysfs_class();
+
 	bus_unregister(&mci_bus_type);
 }
