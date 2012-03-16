@@ -13,7 +13,10 @@
 #define _LINUX_EDAC_H_
 
 #include <linux/atomic.h>
+<<<<<<< HEAD
 #include <linux/sysdev.h>
+=======
+>>>>>>> dcd6c92267155e70a94b3927bce681ce74b80d1f
 #include <linux/device.h>
 
 #define EDAC_OPSTATE_INVAL	-1
@@ -24,12 +27,12 @@
 extern int edac_op_state;
 extern int edac_err_assert;
 extern atomic_t edac_handlers;
-extern struct sysdev_class edac_class;
+extern struct bus_type edac_subsys;
 
 extern int edac_handler_set(void);
 extern void edac_atomic_assert_error(void);
-extern struct sysdev_class *edac_get_sysfs_class(void);
-extern void edac_put_sysfs_class(void);
+extern struct bus_type *edac_get_sysfs_subsys(void);
+extern void edac_put_sysfs_subsys(void);
 
 static inline void opstate_init(void)
 {

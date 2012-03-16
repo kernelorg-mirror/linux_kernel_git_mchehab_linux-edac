@@ -844,6 +844,7 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 int __init edac_mc_sysfs_init(void)
 {
+<<<<<<< HEAD
 	int rc;
 	struct sysdev_class *edac_class;
 
@@ -871,17 +872,52 @@ int __init edac_mc_sysfs_init(void)
 	if (rc) {
 		printk(KERN_ERR "rc_core: unable to register rc class\n");
 		return rc;
+=======
+	int err = -EINVAL;
+	struct bus_type *edac_subsys;
+
+	debugf1("%s()\n", __func__);
+
+	/* get the /sys/devices/system/edac subsys reference */
+	edac_subsys = edac_get_sysfs_subsys();
+	if (edac_subsys == NULL) {
+		debugf1("%s() no edac_subsys error=%d\n", __func__, err);
+		goto fail_out;
+	}
+
+	/* Init the MC's kobject */
+	mc_kset = kset_create_and_add("mc", NULL, &edac_subsys->dev_root->kobj);
+	if (!mc_kset) {
+		err = -ENOMEM;
+		debugf1("%s() Failed to register '.../edac/mc'\n", __func__);
+		goto fail_kset;
+>>>>>>> dcd6c92267155e70a94b3927bce681ce74b80d1f
 	}
 
 	debugf1("%s() Registered '.../edac/mc' kobject\n", __func__);
 
 	return 0;
+<<<<<<< HEAD
+=======
+
+fail_kset:
+	edac_put_sysfs_subsys();
+
+fail_out:
+	return err;
+>>>>>>> dcd6c92267155e70a94b3927bce681ce74b80d1f
 }
 
 void __exit edac_mc_sysfs_exit(void)
 {
+<<<<<<< HEAD
 	debugf0("%s() removing mc bus\n", __func__);
 	edac_put_sysfs_class();
+=======
+	kset_unregister(mc_kset);
+	edac_put_sysfs_subsys();
+}
+>>>>>>> dcd6c92267155e70a94b3927bce681ce74b80d1f
 
 	bus_unregister(&mci_bus_type);
 }
