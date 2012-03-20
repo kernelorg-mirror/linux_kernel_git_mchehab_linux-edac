@@ -359,6 +359,15 @@ err_out:
 	return err;
 }
 
+struct mcidev_sysfs_group_kobj {
+	struct list_head list;          /* list for all instances within a mc */
+
+	struct kobject kobj;            /* kobj for the group */
+
+	const struct mcidev_sysfs_group *grp;   /* group description table */
+	struct mem_ctl_info *mci;       /* the parent */
+};
+
 #define to_mci(k) container_of(k, struct mem_ctl_info, edac_mci_kobj)
 #define to_mcidev_attr(a) container_of(a,struct mcidev_sysfs_attribute,attr)
 

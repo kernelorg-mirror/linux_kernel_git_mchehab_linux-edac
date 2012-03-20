@@ -386,7 +386,6 @@ static int edac_create_csrow_object(struct mem_ctl_info *mci,
 
 	return 0;
 
-	/* error unwind stack */
 error:
 	put_device(&csrow->dev);
 

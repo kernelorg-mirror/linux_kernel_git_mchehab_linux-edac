@@ -497,15 +497,6 @@ struct mcidev_sysfs_group {
 	const struct mcidev_sysfs_attribute *mcidev_attr; /* group attributes */
 };
 
-struct mcidev_sysfs_group_kobj {
-	struct list_head list;		/* list for all instances within a mc */
-
-	struct kobject kobj;		/* kobj for the group */
-
-	const struct mcidev_sysfs_group *grp;	/* group description table */
-	struct mem_ctl_info *mci;	/* the parent */
-};
-
 /* mcidev_sysfs_attribute structure
  *	used for driver sysfs attributes and in mem_ctl_info
  * 	sysfs top level entries
