@@ -82,6 +82,8 @@ static void edac_mc_dump_csrow(struct csrow_info *csrow)
 
 static void edac_mc_dump_mci(struct mem_ctl_info *mci)
 {
+	const char *type = mci->mem_is_per_rank ? "ranks" : "dimms";
+
 	debugf3("\tmci = %p\n", mci);
 	debugf3("\tmci->mtype_cap = %lx\n", mci->mtype_cap);
 	debugf3("\tmci->edac_ctl_cap = %lx\n", mci->edac_ctl_cap);
@@ -89,8 +91,8 @@ static void edac_mc_dump_mci(struct mem_ctl_info *mci)
 	debugf4("\tmci->edac_check = %p\n", mci->edac_check);
 	debugf3("\tmci->num_csrows = %d, csrows = %p\n",
 		mci->num_csrows, mci->csrows);
-	debugf3("\tmci->nr_dimms = %d, dimns = %p\n",
-		mci->tot_dimms, mci->dimms);
+	debugf3("\tmci->nr_%s = %d, %s = %p\n",
+		type, mci->tot_dimms, type, mci->dimms);
 	debugf3("\tdev = %p\n", mci->pdev);
 	debugf3("\tmod_name:ctl_name = %s:%s\n", mci->mod_name, mci->ctl_name);
 	debugf3("\tpvt_info = %p\n\n", mci->pvt_info);
@@ -170,10 +172,6 @@ void *edac_align_ptr(void **p, unsigned size, int quant)
  * @size_pvt:		size of private storage needed
  *
  *
- * FIXME: drivers handle multi-rank memories on different ways: on some
- * drivers, one multi-rank memory is mapped as one DIMM, while, on others,
- * a single multi-rank DIMM would be mapped into several "dimms".
- *
  * Non-csrow based drivers (like FB-DIMM and RAMBUS ones) will likely report
  * such DIMMS properly, but the CSROWS-based ones will likely do the wrong
  * thing, as two chip select values are used for dual-rank memories (and 4, for
@@ -187,6 +185,12 @@ void *edac_align_ptr(void **p, unsigned size, int quant)
  * you have to allocate and initialize your own structures.
  *
  * Use edac_mc_free() to free mc structures allocated by this function.
+ *
+ * NOTE: drivers handle multi-rank memories on different ways: on some
+ * drivers, one multi-rank memory is mapped as one entry, while, on others,
+ * a single multi-rank DIMM would be mapped into several entries. Currently,
+ * this function will allocate multiple struct dimm_info on such scenarios,
+ * as grouping the multiple ranks require drivers change.
  *
  * Returns:
  *	NULL allocation failed
@@ -207,9 +211,10 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	u32 *ce_per_layer[EDAC_MAX_LAYERS], *ue_per_layer[EDAC_MAX_LAYERS];
 	void *pvt, *p;
 	unsigned size, tot_dimms, count, pos[EDAC_MAX_LAYERS];
-	unsigned tot_csrows, tot_cschannels;
+	unsigned tot_csrows, tot_cschannels, tot_errcount = 0;
 	int i, j, n, len;
 	int row, chn;
+	bool per_rank = false;
 
 	BUG_ON(n_layers > EDAC_MAX_LAYERS);
 	/*
@@ -225,6 +230,9 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 			tot_csrows *= layers[i].size;
 		else
 			tot_cschannels *= layers[i].size;
+
+		if (layers[i].type == EDAC_MC_LAYER_CHIP_SELECT)
+			per_rank = true;
 	}
 
 	/* Figure out the offsets of the various items from the start of an mc
@@ -241,14 +249,21 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	count = 1;
 	for (i = 0; i < n_layers; i++) {
 		count *= layers[i].size;
+		debugf4("%s: errcount layer %d size %d\n", __func__, i, count);
 		ce_per_layer[i] = edac_align_ptr(&ptr, sizeof(u32), count);
 		ue_per_layer[i] = edac_align_ptr(&ptr, sizeof(u32), count);
+		tot_errcount += 2 * count;
 	}
+
+	debugf4("%s: allocating %d error counters\n", __func__, tot_errcount);
 	pvt = edac_align_ptr(&ptr, sz_pvt, 1);
 	size = ((unsigned long)pvt) + sz_pvt;
 
-	debugf1("%s(): allocating %u bytes for mci data (%d dimms, %d csrows/channels)\n",
-		__func__, size, tot_dimms, tot_csrows * tot_cschannels);
+	debugf1("%s(): allocating %u bytes for mci data (%d %s, %d csrows/channels)\n",
+		__func__, size,
+		tot_dimms,
+		per_rank ? "ranks" : "dimms",
+		tot_csrows * tot_cschannels);
 	mci = kzalloc(size, GFP_KERNEL);
 	if (mci == NULL)
 		return NULL;
@@ -277,6 +292,7 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	memcpy(mci->layers, layers, sizeof(*lay) * n_layers);
 	mci->num_csrows = tot_csrows;
 	mci->num_cschannel = tot_cschannels;
+	mci->mem_is_per_rank = true;
 
 	/*
 	 * Fills the csrow struct
@@ -302,15 +318,16 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	memset(&pos, 0, sizeof(pos));
 	row = 0;
 	chn = 0;
-	debugf4("%s: initializing %d dimms\n", __func__, tot_dimms);
+	debugf4("%s: initializing %d %s\n", __func__, tot_dimms,
+		per_rank ? "ranks" : "dimms");
 	for (i = 0; i < tot_dimms; i++) {
 		chan = &csi[row].channels[chn];
 		dimm = GET_POS(lay, mci->dimms, n_layers,
 			       pos[0], pos[1], pos[2]);
 		dimm->mci = mci;
 
-		debugf2("%s: %d: dimm%zd (%d:%d:%d): row %d, chan %d\n", __func__,
-			i, (dimm - mci->dimms),
+		debugf2("%s: %d: %s%zd (%d:%d:%d): row %d, chan %d\n", __func__,
+			i, per_rank ? "rank" : "dimm", (dimm - mci->dimms),
 			pos[0], pos[1], pos[2], row, chn);
 
 		/*
@@ -980,8 +997,10 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			 * get csrow/channel of the dimm, in order to allow
 			 * incrementing the compat API counters
 			 */
-			debugf4("%s: dimm csrows (%d,%d)\n",
-				__func__, dimm->csrow, dimm->cschannel);
+			debugf4("%s: %s csrows map: (%d,%d)\n",
+				__func__,
+				mci->mem_is_per_rank ? "rank" : "dimm",
+				dimm->csrow, dimm->cschannel);
 			if (row == -1)
 				row = dimm->csrow;
 			else if (row >= 0 && row != dimm->csrow)
