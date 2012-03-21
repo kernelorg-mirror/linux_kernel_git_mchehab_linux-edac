@@ -393,14 +393,6 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 
 	mci->op_state = OP_ALLOC;
 	INIT_LIST_HEAD(&mci->grp_kobj_list);
-	/*
-	* Initialize the 'root' kobj for the edac_mc controller
-	*/
-	err = edac_mc_register_sysfs_main_kobj(mci);
-	if (err) {
-		kfree(mci);
-		return NULL;
-	}
 
 	/* at this point, the root kobj is valid, and in order to
 	 * 'free' the object, then the function:
@@ -423,8 +415,6 @@ EXPORT_SYMBOL_GPL(edac_mc_alloc);
 void edac_mc_free(struct mem_ctl_info *mci)
 {
 	debugf1("%s()\n", __func__);
-
-	edac_mc_unregister_sysfs_main_kobj(mci);
 
 	/* free the mci instance memory here */
 	kfree(mci);
@@ -719,11 +709,6 @@ int edac_mc_add_mc(struct mem_ctl_info *mci)
 			"failed to create sysfs device\n");
 		goto fail1;
 	}
-	if (edac_create_sysfs_mci_device_legacy(mci)) {
-		edac_mc_printk(mci, KERN_WARNING,
-			"failed to create sysfs device\n");
-		goto fail1;
-	}
 
 	/* If there IS a check routine, then we are running POLLED */
 	if (mci->edac_check != NULL) {
@@ -783,7 +768,6 @@ struct mem_ctl_info *edac_mc_del_mc(struct device *dev)
 	mci->op_state = OP_OFFLINE;
 
 	/* remove from sysfs */
-	edac_remove_sysfs_mci_device_legacy(mci);
 	edac_remove_sysfs_mci_device(mci);
 
 	edac_printk(KERN_INFO, EDAC_MC,

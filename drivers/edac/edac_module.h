@@ -33,38 +33,6 @@ extern int edac_mc_get_panic_on_ue(void);
 extern int edac_get_poll_msec(void);
 extern int edac_mc_get_poll_msec(void);
 
-	/* on edac_mc_sysfs_legacy.c */
-
-#ifdef CONFIG_EDAC_LEGACY_SYSFS
-extern void edac_sysfs_setup_mc_kset(struct kset *kset);
-extern int edac_mc_register_sysfs_main_kobj(struct mem_ctl_info *mci);
-extern void edac_mc_unregister_sysfs_main_kobj(struct mem_ctl_info *mci);
-extern int edac_create_sysfs_mci_device_legacy(struct mem_ctl_info *mci);
-extern void edac_remove_sysfs_mci_device_legacy(struct mem_ctl_info *mci);
-#else
-static void edac_sysfs_setup_mc_kset(struct kset *kset)
-{
-}
-
-static inline int edac_mc_register_sysfs_main_kobj(struct mem_ctl_info *mci)
-{
-	return 0;
-}
-
-static inline void edac_mc_unregister_sysfs_main_kobj(struct mem_ctl_info *mci)
-{
-}
-
-static inline int edac_create_sysfs_mci_device_legacy(struct mem_ctl_info *mci)
-{
-	return 0;
-}
-
-static inline void edac_remove_sysfs_mci_device_legacy(struct mem_ctl_info *mci)
-{
-}
-#endif
-
 	/* on edac_device.c */
 extern int edac_device_register_sysfs_main_kobj(
 				struct edac_device_ctl_info *edac_dev);

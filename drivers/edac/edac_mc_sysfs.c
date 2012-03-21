@@ -1171,8 +1171,6 @@ int __init edac_mc_sysfs_init(void)
 	if (err < 0)
 		return err;
 
-	edac_sysfs_setup_mc_kset(mci_pdev.kobj.kset);
-
 	return 0;
 }
 
