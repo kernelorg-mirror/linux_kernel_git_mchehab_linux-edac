@@ -2435,26 +2435,21 @@ static bool ecc_enabled(struct pci_dev *F3, u8 nid)
 	return true;
 }
 
-struct mcidev_sysfs_attribute sysfs_attrs[ARRAY_SIZE(amd64_dbg_attrs) +
-					  ARRAY_SIZE(amd64_inj_attrs) +
-					  1];
-
-struct mcidev_sysfs_attribute terminator = { .attr = { .name = NULL } };
-
-static void set_mc_sysfs_attrs(struct mem_ctl_info *mci)
+static int set_mc_sysfs_attrs(struct mem_ctl_info *mci)
 {
-	unsigned int i = 0, j = 0;
+	int rc;
 
-	for (; i < ARRAY_SIZE(amd64_dbg_attrs); i++)
-		sysfs_attrs[i] = amd64_dbg_attrs[i];
+	rc = amd64_create_sysfs_dbg_files(mci);
+	if (rc < 0)
+		return rc;
 
-	if (boot_cpu_data.x86 >= 0x10)
-		for (j = 0; j < ARRAY_SIZE(amd64_inj_attrs); j++, i++)
-			sysfs_attrs[i] = amd64_inj_attrs[j];
+	if (boot_cpu_data.x86 >= 0x10) {
+		rc = amd64_create_sysfs_inject_files(mci);
+		if (rc < 0)
+			return rc;
+	}
 
-	sysfs_attrs[i] = terminator;
-
-	mci->mc_driver_sysfs_attributes = sysfs_attrs;
+	return 0;
 }
 
 static void setup_mci_misc_attrs(struct mem_ctl_info *mci,
@@ -2580,12 +2575,14 @@ static int amd64_init_one_instance(struct pci_dev *F2)
 	if (init_csrows(mci))
 		mci->edac_cap = EDAC_FLAG_NONE;
 
-	set_mc_sysfs_attrs(mci);
-
 	ret = -ENODEV;
 	if (edac_mc_add_mc(mci)) {
 		debugf1("failed edac_mc_add_mc()\n");
 		goto err_add_mc;
+	}
+	if (set_mc_sysfs_attrs(mci)) {
+		debugf1("failed edac_mc_add_mc()\n");
+		goto err_add_sysfs;
 	}
 
 	/* register stuff with EDAC MCE */
@@ -2600,6 +2597,8 @@ static int amd64_init_one_instance(struct pci_dev *F2)
 
 	return 0;
 
+err_add_sysfs:
+	edac_mc_del_mc(mci->pdev);
 err_add_mc:
 	edac_mc_free(mci);
 
