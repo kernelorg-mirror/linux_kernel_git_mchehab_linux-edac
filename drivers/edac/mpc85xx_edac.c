@@ -1170,7 +1170,9 @@ static void __init mpc85xx_mc_clear_rfxe(void *data)
 static int __init mpc85xx_mc_init(void)
 {
 	int res = 0;
-
+#ifdef CONFIG_FSL_SOC_BOOKE
+	u32 pvr;
+#endif
 	printk(KERN_INFO "Freescale(R) MPC85xx EDAC driver, "
 	       "(C) 2006 Montavista Software\n");
 
