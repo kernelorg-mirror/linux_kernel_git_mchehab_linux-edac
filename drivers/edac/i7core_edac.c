@@ -1176,7 +1176,7 @@ static int i7core_create_sysfs_devices(struct mem_ctl_info *mci)
 	pvt->addrmatch_dev.bus = mci->dev.bus;
 	device_initialize(&pvt->addrmatch_dev);
 	pvt->addrmatch_dev.parent = &mci->dev;
-	dev_set_name(&pvt->addrmatch_dev, "all_channel_counts");
+	dev_set_name(&pvt->addrmatch_dev, "inject_addrmatch");
 	dev_set_drvdata(&pvt->addrmatch_dev, mci);
 
 	debugf1("%s(): creating %s\n", __func__,
