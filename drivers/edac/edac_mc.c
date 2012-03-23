@@ -292,7 +292,7 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	memcpy(mci->layers, layers, sizeof(*lay) * n_layers);
 	mci->num_csrows = tot_csrows;
 	mci->num_cschannel = tot_cschannels;
-	mci->mem_is_per_rank = true;
+	mci->mem_is_per_rank = per_rank;
 
 	/*
 	 * Fills the csrow struct

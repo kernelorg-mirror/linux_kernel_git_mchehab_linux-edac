@@ -65,6 +65,7 @@ struct bus_type *edac_get_sysfs_subsys(void)
 {
 	int err = 0;
 
+
 	if (atomic_read(&edac_subsys_valid))
 		goto out;
 
@@ -77,14 +78,20 @@ struct bus_type *edac_get_sysfs_subsys(void)
 
 out:
 	atomic_inc(&edac_subsys_valid);
+
+printk("%s() edac instance %d\n",
+	__func__, atomic_read(&edac_subsys_valid));
+
 	return &edac_subsys;
 }
 EXPORT_SYMBOL_GPL(edac_get_sysfs_subsys);
 
 void edac_put_sysfs_subsys(void)
 {
-	/* last user unregisters it */
+		/* last user unregisters it */
 	if (atomic_dec_and_test(&edac_subsys_valid))
 		bus_unregister(&edac_subsys);
+printk("%s() edac instance %d\n",
+	__func__, atomic_read(&edac_subsys_valid));
 }
 EXPORT_SYMBOL_GPL(edac_put_sysfs_subsys);
