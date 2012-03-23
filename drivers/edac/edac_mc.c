@@ -406,6 +406,8 @@ void edac_mc_free(struct mem_ctl_info *mci)
 {
 	debugf1("%s()\n", __func__);
 
+	edac_unregister_sysfs(mci);
+
 	/* free the mci instance memory here */
 	kfree(mci);
 }

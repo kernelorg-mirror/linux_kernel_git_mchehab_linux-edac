@@ -902,7 +902,10 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 			dev_name(&dimm->dev));
 		put_device(&dimm->dev);
 	}
+}
 
+void edac_unregister_sysfs(struct mem_ctl_info *mci)
+{
 	debugf0("%s(): removing device %s\n", __func__,
 		dev_name(&mci->dev));
 	put_device(&mci->dev);
