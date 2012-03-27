@@ -1101,6 +1101,7 @@ static const struct attribute_group *addrmatch_groups[] = {
 
 static void addrmatch_release(struct device *device)
 {
+	debugf1("Releasing device %s\n", __func__, dev_name(device));
 }
 
 static struct device_type addrmatch_type = {
@@ -1130,6 +1131,7 @@ static const struct attribute_group *all_channel_counts_groups[] = {
 
 static void all_channel_counts_release(struct device *device)
 {
+	debugf1("Releasing device %s\n", __func__, dev_name(device));
 }
 
 static struct device_type all_channel_counts_type = {
@@ -1207,9 +1209,20 @@ static int i7core_create_sysfs_devices(struct mem_ctl_info *mci)
 static void i7core_delete_sysfs_devices(struct mem_ctl_info *mci)
 {
 	struct i7core_pvt *pvt = mci->pvt_info;
-	if (!pvt->is_registered)
+
+	debugf1("\n");
+
+	device_remove_file(&mci->dev, &dev_attr_inject_section);
+	device_remove_file(&mci->dev, &dev_attr_inject_type);
+	device_remove_file(&mci->dev, &dev_attr_inject_eccmask);
+	device_remove_file(&mci->dev, &dev_attr_inject_enable);
+
+	if (!pvt->is_registered) {
 		put_device(&pvt->chancounts_dev);
+		device_del(&pvt->chancounts_dev);
+	}
 	put_device(&pvt->addrmatch_dev);
+	device_del(&pvt->addrmatch_dev);
 }
 
 /****************************************************************************
