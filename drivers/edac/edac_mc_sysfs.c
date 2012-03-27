@@ -285,6 +285,7 @@ static const struct attribute_group *csrow_attr_groups[] = {
 
 static void csrow_attr_release(struct device *device)
 {
+	debugf1("Releasing csrow device %s\n", dev_name(device));
 }
 
 static struct device_type csrow_attr_type = {
@@ -376,13 +377,22 @@ static int edac_create_csrow_object(struct mem_ctl_info *mci,
 			goto error;
 		err = device_create_file(&csrow->dev,
 					 dynamic_csrow_ce_count_attr[chan]);
-		if (err < 0)
+		if (err < 0) {
+			device_remove_file(&csrow->dev,
+					   dynamic_csrow_dimm_attr[chan]);
 			goto error;
+		}
 	}
 
 	return 0;
 
 error:
+	for (--chan; chan >= 0; chan--) {
+		device_remove_file(&csrow->dev,
+					dynamic_csrow_dimm_attr[chan]);
+		device_remove_file(&csrow->dev,
+					   dynamic_csrow_ce_count_attr[chan]);
+	}
 	put_device(&csrow->dev);
 
 	return err;
@@ -391,7 +401,8 @@ error:
 /* Create a CSROW object under specifed edac_mc_device */
 static int edac_create_csrow_objects(struct mem_ctl_info *mci)
 {
-	int err, i;
+	int err, i, chan;
+	struct csrow_info *csrow;
 
 	for (i = 0; i < mci->num_csrows; i++) {
 		err = edac_create_csrow_object(mci, &mci->csrows[i], i);
@@ -401,18 +412,38 @@ static int edac_create_csrow_objects(struct mem_ctl_info *mci)
 	return 0;
 
 error:
-	for (--i; i >= 0; i--)
+	for (--i; i >= 0; i--) {
+		csrow = &mci->csrows[i];
+		for (chan = csrow->nr_channels - 1; chan >= 0; chan--) {
+			device_remove_file(&csrow->dev,
+						dynamic_csrow_dimm_attr[chan]);
+			device_remove_file(&csrow->dev,
+						dynamic_csrow_ce_count_attr[chan]);
+		}
 		put_device(&mci->csrows[i].dev);
+	}
 
 	return err;
 }
 
 static void edac_delete_csrow_objects(struct mem_ctl_info *mci)
 {
-	int i;
+	int i, chan;
+	struct csrow_info *csrow;
 
-	for (i = 0; i < mci->num_csrows; i++)
+	for (i = mci->num_csrows - 1; i >= 0; i--) {
+		csrow = &mci->csrows[i];
+		for (chan = csrow->nr_channels - 1; chan >= 0; chan--) {
+			debugf1("Removing csrow %d channel %d sysfs nodes\n",
+				i, chan);
+			device_remove_file(&csrow->dev,
+						dynamic_csrow_dimm_attr[chan]);
+			device_remove_file(&csrow->dev,
+						dynamic_csrow_ce_count_attr[chan]);
+		}
 		put_device(&mci->csrows[i].dev);
+		device_del(&mci->csrows[i].dev);
+	}
 }
 #endif
 
@@ -532,6 +563,7 @@ static const struct attribute_group *dimm_attr_groups[] = {
 
 static void dimm_attr_release(struct device *device)
 {
+	debugf1("Releasing dimm device %s\n", dev_name(device));
 }
 
 static struct device_type dimm_attr_type = {
@@ -838,6 +870,7 @@ static const struct attribute_group *mci_attr_groups[] = {
 
 static void mci_attr_release(struct device *device)
 {
+	debugf1("Releasing mci device %s\n", dev_name(device));
 }
 
 static struct device_type mci_attr_type = {
@@ -960,8 +993,10 @@ fail:
 		if (dimm->nr_pages == 0)
 			continue;
 		put_device(&dimm->dev);
+		device_del(&dimm->dev);
 	}
 	put_device(&mci->dev);
+	device_del(&mci->dev);
 	return err;
 }
 
@@ -988,16 +1023,26 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 		debugf0("%s(): removing device %s\n", __func__,
 			dev_name(&dimm->dev));
 		put_device(&dimm->dev);
+		device_del(&dimm->dev);
 	}
 }
 
 void edac_unregister_sysfs(struct mem_ctl_info *mci)
 {
-	debugf0("%s(): removing device %s\n", __func__,
+	debugf1("Unregistering device %s\n", __func__,
 		dev_name(&mci->dev));
 	put_device(&mci->dev);
+	device_del(&mci->dev);
 }
 
+static void mc_attr_release(struct device *device)
+{
+	debugf1("Releasing device %s\n", __func__, dev_name(device));
+}
+
+static struct device_type mc_attr_type = {
+	.release	= mc_attr_release,
+};
 /*
  * Init/exit code for the module. Basically, creates/removes /sys/class/rc
  */
@@ -1005,8 +1050,6 @@ int __init edac_mc_sysfs_init(void)
 {
 	struct bus_type *edac_subsys;
 	int err;
-
-	debugf1("%s()\n", __func__);
 
 	/* get the /sys/devices/system/edac subsys reference */
 	edac_subsys = edac_get_sysfs_subsys();
@@ -1016,6 +1059,7 @@ int __init edac_mc_sysfs_init(void)
 	}
 
 	mci_pdev.bus = edac_subsys;
+	mci_pdev.type = &mc_attr_type;
 	device_initialize(&mci_pdev);
 	dev_set_name(&mci_pdev, "mc");
 
@@ -1029,5 +1073,6 @@ int __init edac_mc_sysfs_init(void)
 void __exit edac_mc_sysfs_exit(void)
 {
 	put_device(&mci_pdev);
+	device_del(&mci_pdev);
 	edac_put_sysfs_subsys();
 }
