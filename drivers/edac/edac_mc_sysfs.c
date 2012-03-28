@@ -357,7 +357,7 @@ static int edac_create_csrow_object(struct mem_ctl_info *mci,
 		return -ENODEV;
 
 	csrow->dev.type = &csrow_attr_type;
-	csrow->dev.bus = mci_pdev.bus;
+	csrow->dev.bus = &mci->bus;
 	device_initialize(&csrow->dev);
 	csrow->dev.parent = &mci->dev;
 	dev_set_name(&csrow->dev, "csrow%d", index);
@@ -580,7 +580,7 @@ static int edac_create_dimm_object(struct mem_ctl_info *mci,
 	dimm->mci = mci;
 
 	dimm->dev.type = &dimm_attr_type;
-	dimm->dev.bus = mci_pdev.bus;
+	dimm->dev.bus = &mci->bus;
 	device_initialize(&dimm->dev);
 
 	dimm->dev.parent = &mci->dev;
@@ -937,16 +937,29 @@ int edac_create_sysfs_mci_device(struct mem_ctl_info *mci)
 	device_initialize(&mci->dev);
 
 	mci->dev.parent = &mci_pdev;
-	mci->dev.bus = mci_pdev.bus;
+	mci->dev.bus = &mci->bus;
 	dev_set_name(&mci->dev, "mc%d", mci->mc_idx);
 	dev_set_drvdata(&mci->dev, mci);
 	pm_runtime_forbid(&mci->dev);
 
+	/*
+	 * The memory controller needs its own bus, in order to avoid
+	 * namespace conflicts at /sys/bus/edac.
+	 */
+	debugf0("creating bus %s\n",mci->bus.name);
+	mci->bus.name = kstrdup(dev_name(&mci->dev), GFP_KERNEL);
+	err = bus_register(&mci->bus);
+	if (err < 0)
+		return err;
+
 	debugf0("%s(): creating device %s\n", __func__,
 		dev_name(&mci->dev));
 	err = device_add(&mci->dev);
-	if (err < 0)
+	if (err < 0) {
+		bus_unregister(&mci->bus);
+		kfree(mci->bus.name);
 		return err;
+	}
 
 	/*
 	 * Create the dimm/rank devices
@@ -997,6 +1010,8 @@ fail:
 	}
 	put_device(&mci->dev);
 	device_del(&mci->dev);
+	bus_unregister(&mci->bus);
+	kfree(mci->bus.name);
 	return err;
 }
 
@@ -1032,6 +1047,8 @@ void edac_unregister_sysfs(struct mem_ctl_info *mci)
 	debugf1("Unregistering device %s\n", dev_name(&mci->dev));
 	put_device(&mci->dev);
 	device_del(&mci->dev);
+	bus_unregister(&mci->bus);
+	kfree(mci->bus.name);
 }
 
 static void mc_attr_release(struct device *device)
