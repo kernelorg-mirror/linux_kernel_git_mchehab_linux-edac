@@ -507,6 +507,7 @@ struct edac_hierarchy {
  */
 struct mem_ctl_info {
 	struct device			dev;
+	struct bus_type			bus;
 
 	struct list_head link;	/* for global list of mem_ctl_info structs */
 
