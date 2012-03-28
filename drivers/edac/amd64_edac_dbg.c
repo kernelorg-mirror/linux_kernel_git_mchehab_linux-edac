@@ -62,3 +62,12 @@ int amd64_create_sysfs_dbg_files(struct mem_ctl_info *mci)
 
 	return 0;
 }
+
+void amd64_remove_sysfs_dbg_files(struct mem_ctl_info *mci)
+{
+	device_remove_file(&mci->dev, &dev_attr_dhar);
+	device_remove_file(&mci->dev, &dev_attr_dbam);
+	device_remove_file(&mci->dev, &dev_attr_topmem);
+	device_remove_file(&mci->dev, &dev_attr_topmem2);
+	device_remove_file(&mci->dev, &dev_attr_dram_hole);
+}

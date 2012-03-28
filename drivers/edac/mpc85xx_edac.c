@@ -149,6 +149,12 @@ static int mpc85xx_create_sysfs_attributes(struct mem_ctl_info *mci)
 	return 0;
 }
 
+static void mpc85xx_remove_sysfs_attributes(struct mem_ctl_info *mci)
+{
+	device_remove_file(&mci->dev, &dev_attr_inject_data_hi);
+	device_remove_file(&mci->dev, &dev_attr_inject_data_lo);
+	device_remove_file(&mci->dev, &dev_attr_inject_ctrl);
+}
 
 /**************************** PCI Err device ***************************/
 #ifdef CONFIG_PCI
@@ -1127,6 +1133,7 @@ static int mpc85xx_mc_err_remove(struct platform_device *op)
 		 orig_ddr_err_disable);
 	out_be32(pdata->mc_vbase + MPC85XX_MC_ERR_SBE, orig_ddr_err_sbe);
 
+	mpc85xx_remove_sysfs_attributes(mci);
 	edac_mc_del_mc(&op->dev);
 	edac_mc_free(mci);
 	return 0;

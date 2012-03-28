@@ -414,19 +414,29 @@ struct ecc_settings {
 
 #ifdef CONFIG_EDAC_DEBUG
 int amd64_create_sysfs_dbg_files(struct mem_ctl_info *mci);
+void amd64_remove_sysfs_dbg_files(struct mem_ctl_info *mci);
+
 #else
 static int amd64_create_sysfs_dbg_files(struct mem_ctl_info *mci)
 {
 	return 0;
 }
+void amd64_remove_sysfs_dbg_files(struct mem_ctl_info *mci)
+{
+}
 #endif
 
 #ifdef CONFIG_EDAC_AMD64_ERROR_INJECTION
 int amd64_create_sysfs_inject_files(struct mem_ctl_info *mci);
+void amd64_remove_sysfs_inject_files(struct mem_ctl_info *mci);
+
 #else
 static int amd64_create_sysfs_inject_files(struct mem_ctl_info *mci)
 {
 	return 0;
+}
+static void amd64_remove_sysfs_inject_files(struct mem_ctl_info *mci)
+{
 }
 #endif
 

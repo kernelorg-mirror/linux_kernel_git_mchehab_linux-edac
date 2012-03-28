@@ -1101,7 +1101,7 @@ static const struct attribute_group *addrmatch_groups[] = {
 
 static void addrmatch_release(struct device *device)
 {
-	debugf1("Releasing device %s\n", __func__, dev_name(device));
+	debugf1("Releasing device %s\n", dev_name(device));
 }
 
 static struct device_type addrmatch_type = {
@@ -1131,7 +1131,7 @@ static const struct attribute_group *all_channel_counts_groups[] = {
 
 static void all_channel_counts_release(struct device *device)
 {
-	debugf1("Releasing device %s\n", __func__, dev_name(device));
+	debugf1("Releasing device %s\n", dev_name(device));
 }
 
 static struct device_type all_channel_counts_type = {

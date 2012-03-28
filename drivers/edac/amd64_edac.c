@@ -2452,6 +2452,14 @@ static int set_mc_sysfs_attrs(struct mem_ctl_info *mci)
 	return 0;
 }
 
+static void del_mc_sysfs_attrs(struct mem_ctl_info *mci)
+{
+	amd64_remove_sysfs_dbg_files(mci);
+
+	if (boot_cpu_data.x86 >= 0x10)
+		amd64_remove_sysfs_inject_files(mci);
+}
+
 static void setup_mci_misc_attrs(struct mem_ctl_info *mci,
 				 struct amd64_family_type *fam)
 {
@@ -2669,6 +2677,8 @@ static void __devexit amd64_remove_one_instance(struct pci_dev *pdev)
 	struct pci_dev *F3 = node_to_amd_nb(nid)->misc;
 	struct ecc_settings *s = ecc_stngs[nid];
 
+	mci = find_mci_by_dev(&pdev->dev);
+	del_mc_sysfs_attrs(mci);
 	/* Remove from EDAC CORE tracking list */
 	mci = edac_mc_del_mc(&pdev->dev);
 	if (!mci)

@@ -222,3 +222,12 @@ int amd64_create_sysfs_inject_files(struct mem_ctl_info *mci)
 
 	return 0;
 }
+
+void amd64_remove_sysfs_inject_files(struct mem_ctl_info *mci)
+{
+	device_remove_file(&mci->dev, &dev_attr_inject_section);
+	device_remove_file(&mci->dev, &dev_attr_inject_word);
+	device_remove_file(&mci->dev, &dev_attr_inject_ecc_vector);
+	device_remove_file(&mci->dev, &dev_attr_inject_write);
+	device_remove_file(&mci->dev, &dev_attr_inject_read);
+}

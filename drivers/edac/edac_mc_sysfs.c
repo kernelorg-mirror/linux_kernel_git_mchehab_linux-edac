@@ -1029,15 +1029,14 @@ void edac_remove_sysfs_mci_device(struct mem_ctl_info *mci)
 
 void edac_unregister_sysfs(struct mem_ctl_info *mci)
 {
-	debugf1("Unregistering device %s\n", __func__,
-		dev_name(&mci->dev));
+	debugf1("Unregistering device %s\n", dev_name(&mci->dev));
 	put_device(&mci->dev);
 	device_del(&mci->dev);
 }
 
 static void mc_attr_release(struct device *device)
 {
-	debugf1("Releasing device %s\n", __func__, dev_name(device));
+	debugf1("Releasing device %s\n", dev_name(device));
 }
 
 static struct device_type mc_attr_type = {
