@@ -409,17 +409,28 @@ struct edac_mc_layer {
  * during the memory allocation routine, with would point to the developer
  * that he's doing something wrong.
  */
-#define GET_POS(layers, var, nlayers, lay0, lay1, lay2) ({		\
-	typeof(var) __p;						\
+
+#define GET_OFFSET(layers, nlayers, lay0, lay1, lay2) ({		\
+	int __i;								\
 	if ((nlayers) == 1)						\
-		__p = &var[lay0];					\
+		__i = lay0;						\
 	else if ((nlayers) == 2)					\
-		__p = &var[(lay1) + ((layers[1]).size * (lay0))];	\
+		__i = (lay1) + ((layers[1]).size * (lay0));		\
 	else if ((nlayers) == 3)					\
-		__p = &var[(lay2) + ((layers[2]).size * ((lay1) +	\
-			    ((layers[1]).size * (lay0))))];		\
+		__i = (lay2) + ((layers[2]).size * ((lay1) +		\
+			    ((layers[1]).size * (lay0))));		\
 	else								\
+		__i = -EINVAL;						\
+	__i;								\
+})
+
+#define GET_POS(layers, var, nlayers, lay0, lay1, lay2) ({		\
+	typeof(*var) __p;						\
+	int ___i = GET_OFFSET(layers, nlayers, lay0, lay1, lay2);	\
+	if (___i < 0)							\
 		__p = NULL;						\
+	else								\
+		__p = (var)[___i];					\
 	__p;								\
 })
 
@@ -459,8 +470,6 @@ struct dimm_info {
  *	  patches in this series will fix this issue.
  */
 struct rank_info {
-	struct device dev;
-
 	int chan_idx;
 	struct csrow_info *csrow;
 	struct dimm_info *dimm;
@@ -486,7 +495,7 @@ struct csrow_info {
 
 	/* channel information for this csrow */
 	u32 nr_channels;
-	struct rank_info *channels;
+	struct rank_info **channels;
 };
 
 /*
@@ -550,7 +559,7 @@ struct mem_ctl_info {
 	unsigned long (*ctl_page_to_phys) (struct mem_ctl_info * mci,
 					   unsigned long page);
 	int mc_idx;
-	struct csrow_info *csrows;
+	struct csrow_info **csrows;
 	unsigned num_csrows, num_cschannel;
 
 	/*
@@ -570,7 +579,7 @@ struct mem_ctl_info {
 	 * DIMM info. Will eventually remove the entire csrows_info some day
 	 */
 	unsigned tot_dimms;
-	struct dimm_info *dimms;
+	struct dimm_info **dimms;
 
 	/*
 	 * FIXME - what about controllers on other busses? - IDs must be

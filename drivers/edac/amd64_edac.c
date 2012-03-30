@@ -2197,7 +2197,7 @@ static int init_csrows(struct mem_ctl_info *mci)
 		!!(val & NBCFG_CHIPKILL), !!(val & NBCFG_ECC_ENABLE));
 
 	for_each_chip_select(i, 0, pvt) {
-		csrow = &mci->csrows[i];
+		csrow = mci->csrows[i];
 
 		if (!csrow_enabled(i, 0, pvt)) {
 			debugf1("----CSROW %d EMPTY for node %d\n", i,
@@ -2225,9 +2225,9 @@ static int init_csrows(struct mem_ctl_info *mci)
 			edac_mode = EDAC_NONE;
 
 		for (j = 0; j < pvt->channel_count; j++) {
-			csrow->channels[j].dimm->mtype = mtype;
-			csrow->channels[j].dimm->edac_mode = edac_mode;
-			csrow->channels[j].dimm->nr_pages = nr_pages;
+			csrow->channels[j]->dimm->mtype = mtype;
+			csrow->channels[j]->dimm->edac_mode = edac_mode;
+			csrow->channels[j]->dimm->nr_pages = nr_pages;
 
 		}
 
