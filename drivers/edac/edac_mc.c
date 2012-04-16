@@ -108,9 +108,12 @@ EXPORT_SYMBOL_GPL(edac_mem_types);
  * If 'size' is a constant, the compiler will optimize this whole function
  * down to either a no-op or the addition of a constant to the value of 'ptr'.
  */
-void *edac_align_ptr(void *ptr, unsigned size)
+void *edac_align_ptr(void **p, unsigned size, int quant)
 {
 	unsigned align, r;
+	void *ptr = *p;
+
+	*p += size * quant;
 
 	/* Here we assume that the alignment of a "long long" is the most
 	 * stringent alignment that the compiler will ever provide by default.
@@ -131,6 +134,8 @@ void *edac_align_ptr(void *ptr, unsigned size)
 
 	if (r == 0)
 		return (char *)ptr;
+
+	*p += align - r;
 
 	return (void *)(((unsigned long)ptr) + align - r);
 }
@@ -154,6 +159,7 @@ void *edac_align_ptr(void *ptr, unsigned size)
 struct mem_ctl_info *edac_mc_alloc(unsigned sz_pvt, unsigned nr_csrows,
 				unsigned nr_chans, int edac_index)
 {
+	void *ptr;
 	struct mem_ctl_info *mci;
 	struct csrow_info *csi, *csrow;
 	struct rank_info *chi, *chp, *chan;
@@ -168,11 +174,12 @@ struct mem_ctl_info *edac_mc_alloc(unsigned sz_pvt, unsigned nr_csrows,
 	 * stringent as what the compiler would provide if we could simply
 	 * hardcode everything into a single struct.
 	 */
-	mci = (struct mem_ctl_info *)0;
-	csi = edac_align_ptr(&mci[1], sizeof(*csi));
-	chi = edac_align_ptr(&csi[nr_csrows], sizeof(*chi));
-	dimm = edac_align_ptr(&chi[nr_chans * nr_csrows], sizeof(*dimm));
-	pvt = edac_align_ptr(&dimm[nr_chans * nr_csrows], sz_pvt);
+	ptr = 0;
+	mci = edac_align_ptr(&ptr, sizeof(*mci), 1);
+	csi = edac_align_ptr(&ptr, sizeof(*csi), nr_csrows);
+	chi = edac_align_ptr(&ptr, sizeof(*chi), nr_csrows * nr_chans);
+	dimm = edac_align_ptr(ptr, sizeof(*dimm), nr_csrows * nr_chans);
+	pvt = edac_align_ptr(&ptr, sz_pvt, 1);
 	size = ((unsigned long)pvt) + sz_pvt;
 
 	mci = kzalloc(size, GFP_KERNEL);
