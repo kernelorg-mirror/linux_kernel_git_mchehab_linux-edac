@@ -227,7 +227,6 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	unsigned size, tot_dimms, count, pos[EDAC_MAX_LAYERS];
 	unsigned tot_csrows, tot_channels, tot_errcount = 0;
 	int i, j, n, len;
-	int err;
 	int row, chn;
 	bool per_rank = false;
 
@@ -399,15 +398,6 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	mci->op_state = OP_ALLOC;
 	INIT_LIST_HEAD(&mci->grp_kobj_list);
 
-	/*
-	 * Initialize the 'root' kobj for the edac_mc controller
-	 */
-	err = edac_mc_register_sysfs_main_kobj(mci);
-	if (err) {
-		kfree(mci);
-		return NULL;
-	}
-
 	/* at this point, the root kobj is valid, and in order to
 	 * 'free' the object, then the function:
 	 *      edac_mc_unregister_sysfs_main_kobj() must be called
@@ -430,7 +420,7 @@ void edac_mc_free(struct mem_ctl_info *mci)
 {
 	debugf1("%s()\n", __func__);
 
-	edac_mc_unregister_sysfs_main_kobj(mci);
+	edac_unregister_sysfs(mci);
 
 	/* free the mci instance memory here */
 	kfree(mci);
