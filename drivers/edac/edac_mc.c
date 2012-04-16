@@ -205,7 +205,7 @@ void *edac_align_ptr(void **p, unsigned size, int n_elems)
  *	NULL allocation failed
  *	struct mem_ctl_info pointer
  */
-struct mem_ctl_info *new_edac_mc_alloc(unsigned edac_index,
+struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 				   unsigned n_layers,
 				   struct edac_mc_layer *layers,
 				   bool rev_order,
@@ -384,57 +384,6 @@ struct mem_ctl_info *new_edac_mc_alloc(unsigned edac_index,
 	 * will occur during the kobject callback operation
 	 */
 	return mci;
-}
-EXPORT_SYMBOL_GPL(new_edac_mc_alloc);
-
-/**
- * edac_mc_alloc: Allocate and partially fills a struct mem_ctl_info structure
- * @edac_index:		Memory controller number
- * @n_layers:		Nu
-mber of layers at the MC hierarchy
- * layers:		Describes each layer as seen by the Memory Controller
- * @rev_order:		Fills csrows/cs channels at the reverse order
- * @size_pvt:		size of private storage needed
- *
- *
- * FIXME: drivers handle multi-rank memories on different ways: on some
- * drivers, one multi-rank memory is mapped as one DIMM, while, on others,
- * a single multi-rank DIMM would be mapped into several "dimms".
- *
- * Non-csrow based drivers (like FB-DIMM and RAMBUS ones) will likely report
- * such DIMMS properly, but the CSROWS-based ones will likely do the wrong
- * thing, as two chip select values are used for dual-rank memories (and 4, for
- * quad-rank ones). I suspect that this issue could be solved inside the EDAC
- * core for SDRAM memories, but it requires further study at JEDEC JESD 21C.
- *
- * In summary, solving this issue is not easy, as it requires a lot of testing.
- *
- * Everything is kmalloc'ed as one big chunk - more efficient.
- * Only can be used if all structures have the same lifetime - otherwise
- * you have to allocate and initialize your own structures.
- *
- * Use edac_mc_free() to free mc structures allocated by this function.
- *
- * Returns:
- *	NULL allocation failed
- *	struct mem_ctl_info pointer
- */
-
-struct mem_ctl_info *edac_mc_alloc(unsigned sz_pvt, unsigned nr_csrows,
-				   unsigned nr_chans, int edac_index)
-{
-	unsigned n_layers = 2;
-	struct edac_mc_layer layers[n_layers];
-
-	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
-	layers[0].size = nr_csrows;
-	layers[0].is_virt_csrow = true;
-	layers[1].type = EDAC_MC_LAYER_CHANNEL;
-	layers[1].size = nr_chans;
-	layers[1].is_virt_csrow = false;
-
-	return new_edac_mc_alloc(edac_index, ARRAY_SIZE(layers), layers,
-			  false, sz_pvt);
 }
 EXPORT_SYMBOL_GPL(edac_mc_alloc);
 
