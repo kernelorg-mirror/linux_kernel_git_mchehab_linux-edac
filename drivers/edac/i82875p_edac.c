@@ -416,10 +416,10 @@ static int i82875p_probe1(struct pci_dev *pdev, int dev_idx)
 
 	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
 	layers[0].size = I82875P_NR_CSROWS(nr_chans);
-	layers[0].is_csrow = true;
+	layers[0].is_virt_csrow = true;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
 	layers[1].size = nr_chans;
-	layers[1].is_csrow = false;
+	layers[1].is_virt_csrow = false;
 	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, sizeof(*pvt));
 	if (!mci) {
 		rc = -ENOMEM;

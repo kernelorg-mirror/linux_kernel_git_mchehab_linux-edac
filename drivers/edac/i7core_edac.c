@@ -596,7 +596,7 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 			if (!DIMM_PRESENT(dimm_dod[j]))
 				continue;
 
-			dimm = GET_POS(mci->layers, mci->dimms, mci->n_layers,
+			dimm = EDAC_DIMM_PTR(mci->layers, mci->dimms, mci->n_layers,
 				       i, j, 0);
 			banks = numbank(MC_DOD_NUMBANK(dimm_dod[j]));
 			ranks = numrank(MC_DOD_NUMRANK(dimm_dod[j]));
@@ -2229,10 +2229,10 @@ static int i7core_register_mci(struct i7core_dev *i7core_dev)
 
 	layers[0].type = EDAC_MC_LAYER_CHANNEL;
 	layers[0].size = NUM_CHANS;
-	layers[0].is_csrow = false;
+	layers[0].is_virt_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_SLOT;
 	layers[1].size = MAX_DIMMS;
-	layers[1].is_csrow = true;
+	layers[1].is_virt_csrow = true;
 	mci = edac_mc_alloc(i7core_dev->socket, ARRAY_SIZE(layers), layers,
 			    false, sizeof(*pvt));
 	if (unlikely(!mci))

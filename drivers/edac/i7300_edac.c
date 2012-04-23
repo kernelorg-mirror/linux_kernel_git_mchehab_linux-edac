@@ -795,7 +795,7 @@ static int i7300_init_csrows(struct mem_ctl_info *mci)
 			for (ch = 0; ch < MAX_CH_PER_BRANCH; ch++) {
 				int channel = to_channel(ch, branch);
 
-				dimm = GET_POS(mci->layers, mci->dimms,
+				dimm = EDAC_DIMM_PTR(mci->layers, mci->dimms,
 					       mci->n_layers, branch, ch, slot);
 
 				dinfo = &pvt->dimm_info[slot][channel];
@@ -1044,13 +1044,13 @@ static int __devinit i7300_init_one(struct pci_dev *pdev,
 	/* allocate a new MC control structure */
 	layers[0].type = EDAC_MC_LAYER_BRANCH;
 	layers[0].size = MAX_BRANCHES;
-	layers[0].is_csrow = false;
+	layers[0].is_virt_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
 	layers[1].size = MAX_CH_PER_BRANCH;
-	layers[1].is_csrow = true;
+	layers[1].is_virt_csrow = true;
 	layers[2].type = EDAC_MC_LAYER_SLOT;
 	layers[2].size = MAX_SLOTS;
-	layers[2].is_csrow = true;
+	layers[2].is_virt_csrow = true;
 	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, sizeof(*pvt));
 
 	if (mci == NULL)

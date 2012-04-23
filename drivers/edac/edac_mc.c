@@ -240,7 +240,7 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 	tot_csrows = 1;
 	for (i = 0; i < n_layers; i++) {
 		tot_dimms *= layers[i].size;
-		if (layers[i].is_csrow)
+		if (layers[i].is_virt_csrow)
 			tot_csrows *= layers[i].size;
 		else
 			tot_cschannels *= layers[i].size;
@@ -380,7 +380,7 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 		/* Increment csrow location */
 		if (!rev_order) {
 			for (j = n_layers - 1; j >= 0; j--)
-				if (!layers[j].is_csrow)
+				if (!layers[j].is_virt_csrow)
 					break;
 			chn++;
 			if (chn == tot_cschannels) {
@@ -389,7 +389,7 @@ struct mem_ctl_info *edac_mc_alloc(unsigned edac_index,
 			}
 		} else {
 			for (j = n_layers - 1; j >= 0; j--)
-				if (layers[j].is_csrow)
+				if (layers[j].is_virt_csrow)
 					break;
 			row++;
 			if (row == tot_csrows) {

@@ -287,10 +287,10 @@ static int r82600_probe1(struct pci_dev *pdev, int dev_idx)
 	debugf2("%s(): DRAMC register = %#0x\n", __func__, dramcr);
 	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
 	layers[0].size = R82600_NR_CSROWS;
-	layers[0].is_csrow = true;
+	layers[0].is_virt_csrow = true;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
 	layers[1].size = R82600_NR_CHANS;
-	layers[1].is_csrow = false;
+	layers[1].is_virt_csrow = false;
 	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers, false, 0);
 	if (mci == NULL)
 		return -ENOMEM;

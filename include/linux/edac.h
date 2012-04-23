@@ -384,14 +384,14 @@ enum edac_mc_layer_type {
  * struct edac_mc_layer - describes the memory controller hierarchy
  * @layer:		layer type
  * @size:maximum size of the layer
- * @is_csrow:		This layer is part of the "csrow" when old API
+ * @is_virt_csrow:	This layer is part of the "csrow" when old API
  *			compatibility mode is enabled. Otherwise, it is
  *			a channel
  */
 struct edac_mc_layer {
 	enum edac_mc_layer_type	type;
 	unsigned		size;
-	bool			is_csrow;
+	bool			is_virt_csrow;
 };
 
 /*
@@ -424,7 +424,7 @@ struct edac_mc_layer {
 	__i;								\
 })
 
-#define GET_POS(layers, var, nlayers, lay0, lay1, lay2) ({		\
+#define EDAC_DIMM_PTR(layers, var, nlayers, lay0, lay1, lay2) ({		\
 	typeof(*var) __p;						\
 	int ___i = GET_OFFSET(layers, nlayers, lay0, lay1, lay2);	\
 	if (___i < 0)							\

@@ -1287,10 +1287,10 @@ static int __devinit ppc4xx_edac_probe(struct platform_device *op)
 	 */
 	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
 	layers[0].size = ppc4xx_edac_nr_csrows;
-	layers[0].is_csrow = true;
+	layers[0].is_virt_csrow = true;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
 	layers[1].size = ppc4xx_edac_nr_chans;
-	layers[1].is_csrow = false;
+	layers[1].is_virt_csrow = false;
 	mci = edac_mc_alloc(ppc4xx_edac_instance, ARRAY_SIZE(layers), layers,
 			    false, sizeof(struct ppc4xx_edac_pdata));
 	if (mci == NULL) {

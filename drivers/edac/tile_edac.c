@@ -137,10 +137,10 @@ static int __devinit tile_edac_mc_probe(struct platform_device *pdev)
 	/* A TILE MC has a single channel and one chip-select row. */
 	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
 	layers[0].size = TILE_EDAC_NR_CSROWS;
-	layers[0].is_csrow = true;
+	layers[0].is_virt_csrow = true;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
 	layers[1].size = TILE_EDAC_NR_CHANS;
-	layers[1].is_csrow = false;
+	layers[1].is_virt_csrow = false;
 	mci = edac_mc_alloc(pdev->id, ARRAY_SIZE(layers), layers, false,
 			    sizeof(struct tile_edac_priv));
 	if (mci == NULL)

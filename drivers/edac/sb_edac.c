@@ -572,7 +572,7 @@ static int get_dimm_config(struct mem_ctl_info *mci)
 		u32 mtr;
 
 		for (j = 0; j < ARRAY_SIZE(mtr_regs); j++) {
-			dimm = GET_POS(mci->layers, mci->dimms, mci->n_layers,
+			dimm = EDAC_DIMM_PTR(mci->layers, mci->dimms, mci->n_layers,
 				       i, j, 0);
 			pci_read_config_dword(pvt->pci_tad[i],
 					      mtr_regs[j], &mtr);
@@ -1635,10 +1635,10 @@ static int sbridge_register_mci(struct sbridge_dev *sbridge_dev)
 	/* allocate a new MC control structure */
 	layers[0].type = EDAC_MC_LAYER_CHANNEL;
 	layers[0].size = NUM_CHANNELS;
-	layers[0].is_csrow = false;
+	layers[0].is_virt_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_SLOT;
 	layers[1].size = MAX_DIMMS;
-	layers[1].is_csrow = true;
+	layers[1].is_virt_csrow = true;
 	mci = edac_mc_alloc(sbridge_dev->mc, ARRAY_SIZE(layers), layers,
 			    false, sizeof(*pvt));
 

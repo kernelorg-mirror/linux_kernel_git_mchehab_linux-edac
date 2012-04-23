@@ -711,10 +711,10 @@ static int __devinit mv64x60_mc_err_probe(struct platform_device *pdev)
 
 	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
 	layers[0].size = 1;
-	layers[0].is_csrow = true;
+	layers[0].is_virt_csrow = true;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
 	layers[1].size = 1;
-	layers[1].is_csrow = false;
+	layers[1].is_virt_csrow = false;
 	mci = edac_mc_alloc(edac_mc_idx, ARRAY_SIZE(layers), layers, false,
 			    sizeof(struct mv64x60_mc_pdata));
 	if (!mci) {

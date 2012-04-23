@@ -844,7 +844,7 @@ static void __devinit i5100_init_csrows(struct mem_ctl_info *mci)
 		if (!npages)
 			continue;
 
-		dimm = GET_POS(mci->layers, mci->dimms, mci->n_layers,
+		dimm = EDAC_DIMM_PTR(mci->layers, mci->dimms, mci->n_layers,
 			       chan, rank, 0);
 
 		dimm->nr_pages = npages;
@@ -932,10 +932,10 @@ static int __devinit i5100_init_one(struct pci_dev *pdev,
 
 	layers[0].type = EDAC_MC_LAYER_CHANNEL;
 	layers[0].size = 2;
-	layers[0].is_csrow = false;
+	layers[0].is_virt_csrow = false;
 	layers[1].type = EDAC_MC_LAYER_SLOT;
 	layers[1].size = ranksperch;
-	layers[1].is_csrow = true;
+	layers[1].is_virt_csrow = true;
 	mci = edac_mc_alloc(0, ARRAY_SIZE(layers), layers,
 			    false, sizeof(*priv));
 	if (!mci) {
