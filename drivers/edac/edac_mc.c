@@ -930,11 +930,18 @@ static void edac_ce_error(struct mem_ctl_info *mci,
 {
 	unsigned long remapped_page;
 
-	if (edac_mc_get_log_ce())
-		edac_mc_printk(mci, KERN_WARNING,
-				"CE %s on %s (%s%s %s)\n",
-				msg, label, location,
-				detail, other_detail);
+	if (edac_mc_get_log_ce()) {
+		if (other_detail && *other_detail)
+			edac_mc_printk(mci, KERN_WARNING,
+				       "CE %s on %s (%s%s - %s)\n",
+				       msg, label, location,
+				       detail, other_detail);
+		else
+			edac_mc_printk(mci, KERN_WARNING,
+				       "CE %s on %s (%s%s)\n",
+				       msg, label, location,
+				       detail);
+	}
 	edac_inc_ce_error(mci, enable_per_layer_report, pos);
 
 	if (mci->scrub_mode & SCRUB_SW_SRC) {
@@ -967,14 +974,26 @@ static void edac_ue_error(struct mem_ctl_info *mci,
 			  const char *other_detail,
 			  const bool enable_per_layer_report)
 {
-	if (edac_mc_get_log_ue())
-		edac_mc_printk(mci, KERN_WARNING,
-			"UE %s on %s (%s%s %s)\n",
-			msg, label, location, detail, other_detail);
+	if (edac_mc_get_log_ue()) {
+		if (other_detail && *other_detail)
+			edac_mc_printk(mci, KERN_WARNING,
+				       "UE %s on %s (%s%s - %s)\n",
+			               msg, label, location, detail,
+				       other_detail);
+		else
+			edac_mc_printk(mci, KERN_WARNING,
+				       "UE %s on %s (%s%s)\n",
+			               msg, label, location, detail);
+	}
 
-	if (edac_mc_get_panic_on_ue())
-		panic("UE %s on %s (%s%s %s)\n",
-			msg, label, location, detail, other_detail);
+	if (edac_mc_get_panic_on_ue()) {
+		if (other_detail && *other_detail)
+			panic("UE %s on %s (%s%s - %s)\n",
+			      msg, label, location, detail, other_detail);
+		else
+			panic("UE %s on %s (%s%s)\n",
+			      msg, label, location, detail);
+	}
 
 	edac_inc_ue_error(mci, enable_per_layer_report, pos);
 }
@@ -1121,7 +1140,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 		if (pos[i] < 0)
 			continue;
 
-		p += sprintf(p, "%s %d ",
+		p += sprintf(p, "%s:%d ",
 			     edac_layer_name[mci->layers[i].type],
 			     pos[i]);
 	}
@@ -1129,16 +1148,15 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	/* Memory type dependent details about the error */
 	if (type == HW_EVENT_ERR_CORRECTED) {
 		snprintf(detail, sizeof(detail),
-			"page 0x%lx offset 0x%lx grain %d syndrome 0x%lx",
+			"page:0x%lx offset:0x%lx grain:%d syndrome:0x%lx",
 			page_frame_number, offset_in_page,
 			grain, syndrome);
-
 		edac_ce_error(mci, pos, msg, location, label, detail,
 			      other_detail, enable_per_layer_report,
 			      page_frame_number, offset_in_page, grain);
 	} else {
 		snprintf(detail, sizeof(detail),
-			"page 0x%lx offset 0x%lx grain %d",
+			"page:0x%lx offset:0x%lx grain:%d",
 			page_frame_number, offset_in_page, grain);
 
 		edac_ue_error(mci, pos, msg, location, label, detail,
