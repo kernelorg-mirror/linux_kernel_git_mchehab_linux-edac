@@ -453,6 +453,23 @@ extern struct mem_ctl_info *find_mci_by_dev(struct device *dev);
 extern struct mem_ctl_info *edac_mc_del_mc(struct device *dev);
 extern int edac_mc_find_csrow_by_page(struct mem_ctl_info *mci,
 				      unsigned long page);
+
+void edac_raw_mc_handle_error(const enum hw_event_mc_err_type type,
+			  struct mem_ctl_info *mci,
+			  long grain,
+			  const u16 error_count,
+			  const int top_layer,
+			  const int mid_layer,
+			  const int low_layer,
+			  const unsigned long page_frame_number,
+			  const unsigned long offset_in_page,
+			  const unsigned long syndrome,
+			  const char *msg,
+			  const char *location,
+			  const char *label,
+			  const char *other_detail,
+			  const bool enable_per_layer_report);
+
 void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			  struct mem_ctl_info *mci,
 			  const u16 error_count,

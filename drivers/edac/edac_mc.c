@@ -1068,6 +1068,82 @@ static void edac_ue_error(struct mem_ctl_info *mci,
 #define OTHER_LABEL " or "
 
 /**
+ * edac_raw_mc_handle_error - reports a memory event to userspace without doing
+ *			      anything to discover the error location
+ *
+ * @type:		severity of the error (CE/UE/Fatal)
+ * @mci:		a struct mem_ctl_info pointer
+ * @grain:		error granularity
+ * @error_count:	Number of errors of the same type
+ * @top_layer:		Memory layer[0] position
+ * @mid_layer:		Memory layer[1] position
+ * @low_layer:		Memory layer[2] position
+ * @page_frame_number:	mem page where the error occurred
+ * @offset_in_page:	offset of the error inside the page
+ * @syndrome:		ECC syndrome
+ * @msg:		Message meaningful to the end users that
+ *			explains the event\
+ * @location:		location of the error, like "csrow:0 channel:1"
+ * @label:		DIMM labels for the affected memory(ies)
+ * @other_detail:	Technical details about the event that
+ *			may help hardware manufacturers and
+ *			EDAC developers to analyse the event
+ * @enable_per_layer_report: should it increment per-layer error counts?
+ *
+ * This raw function is used internally by edac_mc_handle_error(). It should
+ * only be called directly when the hardware error come directly from BIOS,
+ * like in the case of APEI GHES driver.
+ */
+void edac_raw_mc_handle_error(const enum hw_event_mc_err_type type,
+			  struct mem_ctl_info *mci,
+			  long grain,
+			  const u16 error_count,
+			  const int top_layer,
+			  const int mid_layer,
+			  const int low_layer,
+			  const unsigned long page_frame_number,
+			  const unsigned long offset_in_page,
+			  const unsigned long syndrome,
+			  const char *msg,
+			  const char *location,
+			  const char *label,
+			  const char *other_detail,
+			  const bool enable_per_layer_report)
+{
+	char detail[80];
+	u8 grain_bits;
+	int pos[EDAC_MAX_LAYERS] = { top_layer, mid_layer, low_layer };
+
+	/* Report the error via the trace interface */
+	grain_bits = fls_long(grain) + 1;
+	trace_mc_event(type, msg, label, error_count,
+		       mci->mc_idx, top_layer, mid_layer, low_layer,
+		       PAGES_TO_MiB(page_frame_number) | offset_in_page,
+		       grain_bits, syndrome, other_detail);
+
+	/* Memory type dependent details about the error */
+	if (type == HW_EVENT_ERR_CORRECTED) {
+		snprintf(detail, sizeof(detail),
+			"page:0x%lx offset:0x%lx grain:%ld syndrome:0x%lx",
+			page_frame_number, offset_in_page,
+			grain, syndrome);
+		edac_ce_error(mci, error_count, pos, msg, location, label,
+			      detail, other_detail, enable_per_layer_report,
+			      page_frame_number, offset_in_page, grain);
+	} else {
+		snprintf(detail, sizeof(detail),
+			"page:0x%lx offset:0x%lx grain:%ld",
+			page_frame_number, offset_in_page, grain);
+
+		edac_ue_error(mci, error_count, pos, msg, location, label,
+			      detail, other_detail, enable_per_layer_report);
+	}
+
+
+}
+EXPORT_SYMBOL_GPL(edac_raw_mc_handle_error);
+
+/**
  * edac_mc_handle_error - reports a memory event to userspace
  *
  * @type:		severity of the error (CE/UE/Fatal)
@@ -1098,7 +1174,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			  const char *other_detail)
 {
 	/* FIXME: too much for stack: move it to some pre-alocated area */
-	char detail[80], location[80];
+	char location[80];
 	char label[(EDAC_MC_LABEL_LEN + 1 + sizeof(OTHER_LABEL)) * mci->tot_dimms];
 	char *p;
 	int row = -1, chan = -1;
@@ -1106,7 +1182,6 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	int i;
 	long grain;
 	bool enable_per_layer_report = false;
-	u8 grain_bits;
 
 	edac_dbg(3, "MC%d\n", mci->mc_idx);
 
@@ -1229,29 +1304,11 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	if (p > location)
 		*(p - 1) = '\0';
 
-	/* Report the error via the trace interface */
-	grain_bits = fls_long(grain) + 1;
-	trace_mc_event(type, msg, label, error_count,
-		       mci->mc_idx, top_layer, mid_layer, low_layer,
-		       PAGES_TO_MiB(page_frame_number) | offset_in_page,
-		       grain_bits, syndrome, other_detail);
-
-	/* Memory type dependent details about the error */
-	if (type == HW_EVENT_ERR_CORRECTED) {
-		snprintf(detail, sizeof(detail),
-			"page:0x%lx offset:0x%lx grain:%ld syndrome:0x%lx",
-			page_frame_number, offset_in_page,
-			grain, syndrome);
-		edac_ce_error(mci, error_count, pos, msg, location, label,
-			      detail, other_detail, enable_per_layer_report,
-			      page_frame_number, offset_in_page, grain);
-	} else {
-		snprintf(detail, sizeof(detail),
-			"page:0x%lx offset:0x%lx grain:%ld",
-			page_frame_number, offset_in_page, grain);
-
-		edac_ue_error(mci, error_count, pos, msg, location, label,
-			      detail, other_detail, enable_per_layer_report);
-	}
+	edac_raw_mc_handle_error(type, mci, grain, error_count,
+				 top_layer, mid_layer, low_layer,
+				 page_frame_number, offset_in_page,
+				 syndrome,
+				 msg, location, label, other_detail,
+				 enable_per_layer_report);
 }
 EXPORT_SYMBOL_GPL(edac_mc_handle_error);
