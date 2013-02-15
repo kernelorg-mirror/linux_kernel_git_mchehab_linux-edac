@@ -455,20 +455,8 @@ extern int edac_mc_find_csrow_by_page(struct mem_ctl_info *mci,
 				      unsigned long page);
 
 void edac_raw_mc_handle_error(const enum hw_event_mc_err_type type,
-			  struct mem_ctl_info *mci,
-			  long grain,
-			  const u16 error_count,
-			  const int top_layer,
-			  const int mid_layer,
-			  const int low_layer,
-			  const unsigned long page_frame_number,
-			  const unsigned long offset_in_page,
-			  const unsigned long syndrome,
-			  const char *msg,
-			  const char *location,
-			  const char *label,
-			  const char *other_detail,
-			  const bool enable_per_layer_report);
+			      struct mem_ctl_info *mci,
+			      struct edac_raw_error_desc *e);
 
 void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 			  struct mem_ctl_info *mci,
