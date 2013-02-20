@@ -1082,15 +1082,7 @@ void edac_raw_mc_handle_error(const enum hw_event_mc_err_type type,
 			      struct edac_raw_error_desc *e)
 {
 	char detail[80];
-	u8 grain_bits;
 	int pos[EDAC_MAX_LAYERS] = { e->top_layer, e->mid_layer, e->low_layer };
-
-	/* Report the error via the trace interface */
-	grain_bits = fls_long(e->grain) + 1;
-	trace_mc_event(type, e->msg, e->label, e->error_count,
-		       mci->mc_idx, e->top_layer, e->mid_layer, e->low_layer,
-		       PAGES_TO_MiB(e->page_frame_number) | e->offset_in_page,
-		       grain_bits, e->syndrome, e->other_detail);
 
 	/* Memory type dependent details about the error */
 	if (type == HW_EVENT_ERR_CORRECTED) {
@@ -1148,6 +1140,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	int row = -1, chan = -1;
 	int pos[EDAC_MAX_LAYERS] = { top_layer, mid_layer, low_layer };
 	int i, n_labels = 0;
+	u8 grain_bits;
 	struct edac_raw_error_desc *e = &mci->error_desc;
 
 	edac_dbg(3, "MC%d\n", mci->mc_idx);
@@ -1286,6 +1279,13 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	}
 	if (p > e->location)
 		*(p - 1) = '\0';
+
+	/* Report the error via the trace interface */
+	grain_bits = fls_long(e->grain) + 1;
+	trace_mc_event(type, e->msg, e->label, e->error_count,
+		       mci->mc_idx, e->top_layer, e->mid_layer, e->low_layer,
+		       PAGES_TO_MiB(e->page_frame_number) | e->offset_in_page,
+		       grain_bits, e->syndrome, e->other_detail);
 
 	edac_raw_mc_handle_error(type, mci, e);
 }
